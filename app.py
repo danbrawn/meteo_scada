@@ -382,26 +382,30 @@ def _build_stats(period: str):
     df.set_index(DATE_COLUMN, inplace=True)
 
     result = []
+
     temp = _min_max_with_time(df, 'T_AIR')
     if temp:
-        result.append(
-            f"Температура: мин {temp['min']:.1f}°C ({temp['min_time']}), "
-            f"макс {temp['max']:.1f}°C ({temp['max_time']})"
-        )
+        result.append({
+            "label": "Температура",
+            "value": f"мин {temp['min']:.1f}°C ({temp['min_time']}), "
+                     f"макс {temp['max']:.1f}°C ({temp['max_time']})",
+        })
 
     hum = _min_max_with_time(df, 'REL_HUM')
     if hum:
-        result.append(
-            f"Относителна влажност: мин {hum['min']:.1f}% ({hum['min_time']}), "
-            f"макс {hum['max']:.1f}% ({hum['max_time']})"
-        )
+        result.append({
+            "label": "Относителна влажност",
+            "value": f"мин {hum['min']:.1f}% ({hum['min_time']}), "
+                     f"макс {hum['max']:.1f}% ({hum['max_time']})",
+        })
 
     press = _min_max_with_time(df, 'P_REL')
     if press:
-        result.append(
-            f"Атмосферно налягане: мин {press['min']:.1f} hPa ({press['min_time']}), "
-            f"макс {press['max']:.1f} hPa ({press['max_time']})"
-        )
+        result.append({
+            "label": "Атмосферно налягане",
+            "value": f"мин {press['min']:.1f} hPa ({press['min_time']}), "
+                     f"макс {press['max']:.1f} hPa ({press['max_time']})",
+        })
 
     gust_series = df['WIND_GUST'].dropna()
     if not gust_series.empty:
@@ -409,42 +413,59 @@ def _build_stats(period: str):
         gust_value = float(gust_series.loc[gust_time])
         direction = df.loc[gust_time, 'WIND_DIR'] if 'WIND_DIR' in df.columns else None
         dir_text = f", посока {direction}" if pd.notnull(direction) else ''
-        result.append(
-            f"Порив на вятъра: макс {gust_value:.1f} km/h{dir_text} ({_format_dt(gust_time)})"
-        )
+        result.append({
+            "label": "Порив на вятъра",
+            "value": f"макс {gust_value:.1f} km/h{dir_text} ({_format_dt(gust_time)})",
+        })
 
     rain_total = df['RAIN_MINUTE'].dropna().sum()
     if rain_total and period == 'today':
-        result.append(f"Сума дъжд за деня: {rain_total:.1f} mm")
+        result.append({
+            "label": "Сума дъжд за деня",
+            "value": f"{rain_total:.1f} mm",
+        })
     elif rain_total:
-        result.append(f"Сума дъжд: {rain_total:.1f} mm")
+        result.append({
+            "label": "Сума дъжд",
+            "value": f"{rain_total:.1f} mm",
+        })
 
     if period == 'today':
         evap_total = df['EVAPOR_MINUTE'].dropna().sum()
         if evap_total:
-            result.append(f"Изпарение за деня: {evap_total:.1f} mm")
+            result.append({
+                "label": "Изпарение за деня",
+                "value": f"{evap_total:.1f} mm",
+            })
 
     if period != 'today' and not df['RAIN_MINUTE'].dropna().empty:
         daily_rain = df['RAIN_MINUTE'].resample('D').sum()
         max_day = daily_rain.max()
         max_day_time = _format_dt(daily_rain.idxmax())
-        result.append(f"Макс за ден: {max_day:.1f} mm ({max_day_time})")
+        result.append({
+            "label": "Макс за ден",
+            "value": f"{max_day:.1f} mm ({max_day_time})",
+        })
         intensity_series = df['RAIN_MINUTE'].dropna()
         intensity_time = intensity_series.idxmax()
-        result.append(
-            f"Макс интензитет: {float(intensity_series.loc[intensity_time]):.1f} mm/min "
-            f"({_format_dt(intensity_time)})"
-        )
+        result.append({
+            "label": "Макс интензитет",
+            "value": f"{float(intensity_series.loc[intensity_time]):.1f} mm/min ({_format_dt(intensity_time)})",
+        })
 
     rad_series = df['RADIATION'].dropna()
     if not rad_series.empty:
         rad_time = rad_series.idxmax()
         rad_max = float(rad_series.loc[rad_time])
         rad_sum = float(rad_series.sum())
-        result.append(
-            f"Глобална радиация: макс {rad_max:.1f} W/m² ({_format_dt(rad_time)})"
-        )
-        result.append(f"Сума глобална радиация: {rad_sum:.1f} W/m²")
+        result.append({
+            "label": "Глобална радиация",
+            "value": f"макс {rad_max:.1f} W/m² ({_format_dt(rad_time)})",
+        })
+        result.append({
+            "label": "Сума глобална радиация",
+            "value": f"{rad_sum:.1f} W/m²",
+        })
 
     return result
 

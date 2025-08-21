@@ -1,6 +1,16 @@
 $(document).ready(function () {
   function listToHtml(items) {
-    return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
+    return (
+      '<ul class="stats-list">' +
+      items
+        .map(
+          item =>
+            `<li class="stats-item"><span class="stats-label">${item.label}</span>` +
+            `<span class="stats-value">${item.value}</span></li>`
+        )
+        .join('') +
+      '</ul>'
+    );
   }
 
   fetch('/statistics_data')
