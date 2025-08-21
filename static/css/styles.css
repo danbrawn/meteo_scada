@@ -91,21 +91,13 @@ body {
 
 .dashboard-group h3 {
   margin: 0 0 10px 0;
-  background-color: #d3d3d3;
-  color: #333;
+  background-color: #4da877;
+  color: white;
   padding: 10px;
   width: 100%;
   box-sizing: border-box;
+  border-radius: 5px;
 }
-
-
-.dashboard-group h3 {
-  margin: 0 0 10px 0;
-  background-color: #d3d3d3;
-  color: #333;
-  padding: 10px;
-  width: 100%;
-  box-sizing: border-box;
 
 /* Fix for dashboard grid */
 /* Dashboard grid with consistent spacing between tiles */
@@ -119,8 +111,8 @@ body {
 
 /* Ensure all dashboard items fit within the grid */
 .dashboard-item {
-  padding: 10px;
-  border-radius: 5px;
+  padding: 15px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -128,9 +120,15 @@ body {
   text-align: center;
   box-sizing: border-box; /* Include padding and border in size calculation */
   width: 100%; /* Ensure all items have consistent width */
-  background-color: MediumSeaGreen;
-  color: black;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
 }
+
+.dashboard-item:hover {
+  transform: translateY(-2px);
+}
+
 .moment-data-container{
   margin: 5px auto !important;
   width: 100% !important;
@@ -153,7 +151,6 @@ body {
   margin: 10px;
   padding: 15px;
   width: 97%;
-  border: 2px solid #000; /* Add a 2px solid black border */
 }
 
 .dashboard-card.full-width {
