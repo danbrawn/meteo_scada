@@ -389,24 +389,30 @@ def _build_stats(period: str):
     if temp:
         result.append({
             "label": "Температура",
-            "value": f"мин {temp['min']:.1f}°C ({temp['min_time']}), "
-                     f"макс {temp['max']:.1f}°C ({temp['max_time']})",
+            "value": [
+                f"мин {temp['min']:.1f}°C ({temp['min_time']})",
+                f"макс {temp['max']:.1f}°C ({temp['max_time']})",
+            ],
         })
 
     hum = _min_max_with_time(df, 'REL_HUM')
     if hum:
         result.append({
             "label": "Относителна влажност",
-            "value": f"мин {hum['min']:.1f}% ({hum['min_time']}), "
-                     f"макс {hum['max']:.1f}% ({hum['max_time']})",
+            "value": [
+                f"мин {hum['min']:.1f}% ({hum['min_time']})",
+                f"макс {hum['max']:.1f}% ({hum['max_time']})",
+            ],
         })
 
     press = _min_max_with_time(df, 'P_REL')
     if press:
         result.append({
             "label": "Атмосферно налягане",
-            "value": f"мин {press['min']:.1f} hPa ({press['min_time']}), "
-                     f"макс {press['max']:.1f} hPa ({press['max_time']})",
+            "value": [
+                f"мин {press['min']:.1f} hPa ({press['min_time']})",
+                f"макс {press['max']:.1f} hPa ({press['max_time']})",
+            ],
         })
 
     gust_series = df['WIND_GUST'].dropna()

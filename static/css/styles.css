@@ -222,6 +222,13 @@ body {
 
 .stats-value {
   color: #555;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.stats-subvalue {
+  line-height: 1.2;
 }
 /* Date Picker Styling */
 .date-picker-container {

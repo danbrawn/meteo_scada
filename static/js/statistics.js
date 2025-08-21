@@ -4,9 +4,17 @@ $(document).ready(function () {
       '<ul class="stats-list">' +
       items
         .map(
-          item =>
-            `<li class="stats-item"><span class="stats-label">${item.label}</span>` +
-            `<span class="stats-value">${item.value}</span></li>`
+          item => {
+            const valueHtml = Array.isArray(item.value)
+              ? item.value
+                  .map(v => `<span class="stats-subvalue">${v}</span>`)
+                  .join('')
+              : item.value;
+            return (
+              `<li class="stats-item"><span class="stats-label">${item.label}</span>` +
+              `<span class="stats-value">${valueHtml}</span></li>`
+            );
+          }
         )
         .join('') +
       '</ul>'
