@@ -30,9 +30,14 @@ $(document).ready(function() {
   }
 
   function loadData(year, month) {
-    $.getJSON(`/report_data?year=${year}&month=${month}`, function(data) {
-      buildTable(data);
-    });
+    $.getJSON(`/report_data?year=${year}&month=${month}`)
+      .done(function(data) {
+        buildTable(data);
+      })
+      .fail(function() {
+        console.error('Failed to load report data');
+        buildTable({});
+      });
   }
 
   const monthSelect = $('#month-select');

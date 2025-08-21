@@ -584,6 +584,8 @@ def report_data_endpoint():
             .join(daily_evapor)
         )
         combined = combined.round(1)
+        # Replace NaN values with None so JSON is valid
+        combined = combined.where(pd.notnull(combined), None)
 
         result = {col: combined[col].tolist() for col in combined.columns}
         return jsonify(result)
