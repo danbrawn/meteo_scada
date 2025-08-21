@@ -83,22 +83,27 @@ body {
   box-sizing: border-box; /* Prevent elements from going out of bounds */
 }
 
-/* Ensure the plot containers act as relative positioning contexts */
-#last-24-hours-plot, #last-hour-values-plot {
-  position: relative; /* Required for child elements with absolute positioning */
-  max-width: 100%; /* Ensure they don’t exceed the container width */
-  min-height: 400px; /* Ensure sufficient height for loading messages */
-  box-sizing: border-box; /* Include padding and border in size calculation */
-  overflow: hidden; /* Prevent content overflow */
-  text-align: center !important;
-  border: 1px solid #ccc; /* Optional: Add a border for better visibility */
+/* Group container for last minute data */
+.dashboard-group {
+  margin-bottom: 20px;
+}
+
+
+.dashboard-group h3 {
+  margin: 0 0 10px 0;
+  background-color: #d3d3d3;
+  color: #333;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Fix for dashboard grid */
+/* Dashboard grid with consistent spacing between tiles */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Flexible grid layout */
-  gap: 10px; /* Uniform spacing between items */
+  gap: 20px; /* More space between items */
   padding: 10px; /* Consistent padding inside the grid */
   box-sizing: border-box; /* Ensure padding is accounted for */
 }
@@ -106,7 +111,6 @@ body {
 /* Ensure all dashboard items fit within the grid */
 .dashboard-item {
   padding: 10px;
-  margin: 5px;
   border-radius: 5px;
   display: flex;
   flex-direction: column;
@@ -114,7 +118,10 @@ body {
   justify-content: center;
   text-align: center;
   box-sizing: border-box; /* Include padding and border in size calculation */
-  width: 100%; /* Ensure all items have consistent width */}
+  width: 100%; /* Ensure all items have consistent width */
+  background-color: MediumSeaGreen;
+  color: black;
+}
 .moment-data-container{
   margin: 5px auto !important;
   width: 100% !important;
@@ -375,10 +382,6 @@ button:hover {
   .dashboard-item {
     width: 100%; /* Ensure full width for all items */
     margin: 5px 0; /* Consistent margin on smaller screens */
-  }
-   #last-24-hours-plot {
-    width: 100%; /* Ensure the plot doesn’t overflow horizontally */
-    max-width: 100%;
   }
 }
 
