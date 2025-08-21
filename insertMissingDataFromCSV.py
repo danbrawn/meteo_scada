@@ -39,7 +39,7 @@ def read_config():
     global DB_TABLE_HOUR
     # Load configuration from config.ini
     with open('config.ini', 'r', encoding='utf-8') as config_file:
-        config = configparser.ConfigParser()
+        config = configparser.ConfigParser(interpolation=None)
         config.read_file(config_file)
 
     # Read database config
@@ -88,12 +88,9 @@ def get_last_record_datetime(engine, table_name):
 
 # Step 4: Connect to the FTP server and fetch the list of files
 def connect_ftp(ftp_config):
-    # ftp = FTP(ftp_config['ftp_host'], int(ftp_config['ftp_port']))
-    # ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
     ftp = FTP()
     ftp.connect(ftp_config['ftp_host'], int(ftp_config['ftp_port']))
-    # ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
-    ftp.login('admin', 'Bobovdol1234')
+    ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
     ftp.set_pasv(True)  # Force Passive Mode
     print("FTP connection successful")
     return ftp
@@ -179,6 +176,11 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Zero out seconds in CSV data
     csv_data.loc[:, 'DateRef'] = csv_data['DateRef'].apply(zero_seconds)
 
+    # Convert measurement columns to numeric
+    for col in db_col_names:
+        if col != 'DateRef' and col in csv_data.columns:
+            csv_data[col] = pd.to_numeric(csv_data[col], errors='coerce')
+
     # Ensure that all required columns are present in the DataFrame
     missing_cols = set(db_col_names) - set(csv_data.columns)
     if missing_cols:
@@ -256,22 +258,29 @@ def main():
 
     # Initialize time range for new data
     earliest_new_datetime = None
-    latest_new_datetime = datetime.now()  # Assume current time as the end of the range
+    latest_new_datetime = None
 
     # Process and insert each downloaded CSV file
     for csv_file in os.listdir(local_csv_folder):
         csv_path = os.path.join(local_csv_folder, csv_file)
         try:
-            csv_data = pd.read_csv(csv_path, usecols=ftp_config['csv_col_names'], encoding='utf-8')
+            # Read entire CSV to gracefully handle missing columns
+            csv_data = pd.read_csv(csv_path, encoding='utf-8')
         except UnicodeDecodeError:
             try:
-                csv_data = pd.read_csv(csv_path, usecols=ftp_config['csv_col_names'], encoding='latin1')
+                csv_data = pd.read_csv(csv_path, encoding='latin1')
             except Exception as e:
                 logging.error(f"Error reading CSV file {csv_file}: {e}")
                 continue
         except Exception as e:
             logging.error(f"General error reading CSV file {csv_file}: {e}")
             continue
+
+        # Ensure all expected columns exist
+        for col in ftp_config['csv_col_names']:
+            if col not in csv_data.columns:
+                csv_data[col] = pd.NA
+        csv_data = csv_data[ftp_config['csv_col_names']]
 
         try:
             # Ensure 'Time' column in CSV is treated as datetime
@@ -288,11 +297,11 @@ def main():
                 print(f"No new data in file {csv_file}. Skipping.")
                 continue
 
-            # Track the earliest DateRef in the new data
-            if earliest_new_datetime is None:
-                earliest_new_datetime = csv_data_filtered['DateRef'].min()
-            else:
-                earliest_new_datetime = min(earliest_new_datetime, csv_data_filtered['DateRef'].min())
+            # Track earliest and latest DateRef in the new data
+            current_min = csv_data_filtered['DateRef'].min()
+            current_max = csv_data_filtered['DateRef'].max()
+            earliest_new_datetime = current_min if earliest_new_datetime is None else min(earliest_new_datetime, current_min)
+            latest_new_datetime = current_max if latest_new_datetime is None else max(latest_new_datetime, current_max)
 
             # Insert the filtered data into the database
             insert_data_into_db(engine, db_config['table_name'], csv_data_filtered, ftp_config['column_mapping'], ftp_config['db_col_names'])
@@ -307,35 +316,13 @@ def main():
     #         result = connection.execute(query).scalar()
     #     return result
     try:
-        last_record_hour = get_last_record_datetime(engine,DB_TABLE_HOUR)
-        try:
-            if isinstance(last_record_hour, str):
-                last_record_hour = datetime.strptime(last_record_hour.strip(), '%Y-%m-%d %H:%M:%S')
-            else:
-                last_record_hour = last_record_hour
-            # last_date = datetime.strptime(last_date_str.strip(), '%Y-%m-%d %H:%M:%S')
-        except ValueError as e:
-            print(f"Error parsing last_record_datetime: {e}")
+        last_record_hour = get_last_record_datetime(engine, DB_TABLE_HOUR)
+        if isinstance(last_record_hour, str):
+            last_record_hour = datetime.strptime(last_record_hour.strip(), '%Y-%m-%d %H:%M:%S')
 
-        # Ensure 'DateRef' is in datetime format
-        csv_data_filtered.loc[:, 'DateRef']  = pd.to_datetime(csv_data_filtered['DateRef'])
-        latest_new_datetime = csv_data_filtered['DateRef'].max()
-
-        # Calculate hourly means if new data was added
-        if earliest_new_datetime is not None:
-
-            # Align to the last full hour for start
-            hourly_start = last_record_hour # + timedelta(minutes=1)
-            hourly_start = hourly_start.replace(minute=0, second=0, microsecond=0)
-            hourly_start = hourly_start # + timedelta(hours=1)
+        if earliest_new_datetime is not None and latest_new_datetime is not None:
+            hourly_start = last_record_hour.replace(minute=0, second=0, microsecond=0)
             hourly_end = latest_new_datetime.replace(minute=0, second=0, microsecond=0)
-            # now_dt = datetime.now()
-            # now_dt = now_dt.replace(minute=0, second=0, microsecond=0)
-            # Align to the current full hour for end
-            # if hourly_start == now_dt and latest_new_datetime.minute == 59:
-            #     hourly_end = latest_new_datetime.replace(minute=0, second=0, microsecond=0)
-            #     call_mean_hourly(hourly_start, hourly_end)
-            # el
             if hourly_start < hourly_end:
                 hourly_end = hourly_end - timedelta(hours=1)
                 call_mean_hourly(hourly_start, hourly_end)
