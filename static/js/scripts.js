@@ -1,4 +1,5 @@
 $(document).ready(function () {
+
     function renderDashboard(data, columnOrder, columnUnits, columnNamesBG) {
         const container = $('#last-min-values-dashboard');
         container.empty();
@@ -88,6 +89,7 @@ $(document).ready(function () {
 
         const columnGroups = {
             'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER'],
+
             'Параметри на радиация': ['RADIATION'],
             'Изпарение': ['EVAPOR_MINUTE', 'EVAPOR_DAY'],
             'Параметри на вятъра': ['WIND_SPEED_1', 'WIND_SPEED_2', 'WIND_DIR', 'WIND_GUST'],
@@ -113,6 +115,7 @@ $(document).ready(function () {
                 const unit = columnUnits[columnOrder.indexOf(key)] || '';
 
                 let style = 'background-color: MediumSeaGreen; color: black;';
+
                 const value = data[key];
                 let maxThreshold = '';
 
