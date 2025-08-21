@@ -91,36 +91,34 @@ body {
 
 .dashboard-group h3 {
   margin: 0 0 10px 0;
-  background-color: #d3d3d3;
+  background-color: #e0e0e0;
   color: #333;
   padding: 10px;
   width: 100%;
   box-sizing: border-box;
+  border-radius: 5px;
 }
-
-
-.dashboard-group h3 {
-  margin: 0 0 10px 0;
-  background-color: #d3d3d3;
-  color: #333;
-  padding: 10px;
-  width: 100%;
-  box-sizing: border-box;
 
 /* Fix for dashboard grid */
 /* Dashboard grid with consistent spacing between tiles */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Flexible grid layout */
+  grid-template-columns: repeat(4, 1fr); /* Four equal columns */
   gap: 20px; /* More space between items */
   padding: 10px; /* Consistent padding inside the grid */
   box-sizing: border-box; /* Ensure padding is accounted for */
 }
 
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr); /* Responsive fallback for smaller screens */
+  }
+}
+
 /* Ensure all dashboard items fit within the grid */
 .dashboard-item {
-  padding: 10px;
-  border-radius: 5px;
+  padding: 15px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -128,9 +126,15 @@ body {
   text-align: center;
   box-sizing: border-box; /* Include padding and border in size calculation */
   width: 100%; /* Ensure all items have consistent width */
-  background-color: MediumSeaGreen;
-  color: black;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
 }
+
+.dashboard-item:hover {
+  transform: translateY(-2px);
+}
+
 .moment-data-container{
   margin: 5px auto !important;
   width: 100% !important;
@@ -153,7 +157,6 @@ body {
   margin: 10px;
   padding: 15px;
   width: 97%;
-  border: 2px solid #000; /* Add a 2px solid black border */
 }
 
 .dashboard-card.full-width {
