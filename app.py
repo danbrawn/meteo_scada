@@ -782,7 +782,7 @@ if init == 0:
 
 if __name__ == '__main__':
     #insertMissingDataFromCSV.main()
-    #app.run(host='0.0.0.0', port=5010, debug=False)
+    app.run(host='0.0.0.0', port=5010, debug=False)
     # uncomment this to start in non production
-    serve(app, host='0.0.0.0', port=50023)
+    #serve(app, host='0.0.0.0', port=50023)
 
