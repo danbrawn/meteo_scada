@@ -78,7 +78,6 @@ CALCULATED_COLUMNS = [col.strip() for col in config.get('SQL', 'calc_columns').s
 DATA_COLUMNS = RAW_DATA_COLUMNS + CALCULATED_COLUMNS
 RAW_UNITS = [col.strip() for col in config.get('SQL', 'columns_units_list').split(',')]
 CALCULATED_UNITS = [col.strip() for col in config.get('SQL', 'calc_units_list').split(',')]
-
 DATA_COLUMNS_UNITS = RAW_UNITS + CALCULATED_UNITS
 # Pollutant-specific configuration removed; initialize empty lists for compatibility
 POLLUTANT_COLUMNS = []
@@ -95,7 +94,6 @@ DATA_COLUMNS_NAMES = DATA_COLUMNS
 EXCEL_TEMPLATE_PATH = 'template.xlsx'
 RAW_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
 CALCULATED_BG = [col.strip() for col in config.get('SQL', 'calc_columns_bg').split(',')]
-
 DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
 DATA_COLUMNS_STATUS_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_STATUS_BG').split(',')]
 # Variable to store the path of the saved plot image
@@ -105,11 +103,11 @@ last_hour_update_time = None
 global my_df
 my_df = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 # Global dataframes to store the required data
-df_last_24_hours_data = pd.DataFrame()
-df_last_min_status = pd.DataFrame()
-df_last_min_values = pd.DataFrame()
-df_last_hour_values = pd.DataFrame()
-plots=[]
+df_last_24_hours_data = pd.DataFrame(columns=[DATE_COLUMN] + RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)
+df_last_min_status = pd.DataFrame(columns=[DATE_COLUMN] + COLUMNS_LIST_STATUS)
+df_last_min_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
+df_last_hour_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
+plots = []
 #
 # def generate_plot(df, x_col, y_col, title, labels, text_format, height=500, width=800):
 #     try:
@@ -701,6 +699,17 @@ def moment_data():
 
             try:
                 now = datetime.now()
+
+                # Return empty payload if no hourly data has been loaded yet
+                if df_last_hour_values.empty or 'DateRef' not in df_last_hour_values.columns:
+                    return jsonify({
+                        "success": True,
+                        "hour_values_data": [],
+                        "columns_values": DATA_COLUMNS,
+                        "columns_bg": DATA_COLUMNS_BG,
+                        "columns_units": DATA_COLUMNS_UNITS,
+                        "plots": []
+                    })
 
                 if last_hour_update_time is None or (now - last_hour_update_time).total_seconds() > 3 * 60:
                     # Update the last hour update time
