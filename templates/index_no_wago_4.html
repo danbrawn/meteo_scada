@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Мобилна станция РИОСВ</title>
+  <!-- Linking the external CSS file -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <!-- Linking the external JS file -->
+  <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
+</head>
+<body>
+  <!-- Banner Section -->
+  <div class="banner">
+    <button id="moment-data-btn" class="banner-btn">Архивни данни</button>
+    <h1>Мобилна станция РИОСВ</h1>
+    <div class="logout-btn-container">
+      <a href="{{ url_for('logout') }}">
+        <button class="logout-btn">Logout</button>
+      </a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="moment-data-container"  class="container">
+    <!-- Last Minute Status Data Container -->
+    <div id="last-min-status-plot" class="dashboard-card">
+      <h2>Статус на последната минута</h2>
+      <div id="last-min-status-dashboard" class="dashboard-grid"></div>
+    </div>
+
+    <div id="last-min-values-plot" class="dashboard-card">
+      <h2>Данни за последната минута</h2>
+      <div id="last-min-values-dashboard" class="dashboard-grid"></div>
+    </div>
+
+    <div id="last-hour-values-plot" class="dashboard-card">
+      <h2>Данни за последния час</h2>
+      <div id="last-hour-values-dashboard" class="dashboard-grid"></div>
+    </div>
+
+    <!-- Last 24 Hours Data Container -->
+    <div id="last-24-hours-plot" class="dashboard-card full-width">
+      <h2>Данни за последните 24 часа</h2>
+    </div>
+  </div>
+
+  <div id="archive-data-container" class="container hidden">
+    <!-- Archive data controls and plot containers -->
+    <div class="controls">
+      <div class="choose-period-text">
+        <p>Изберете времеви период</p>
+      </div>
+      <div class="date-picker-container">
+          <div class="date-picker-field">
+              <label for="from">От:</label>
+              <input type="text" id="from" name="from">
+          </div>
+          <div class="date-picker-field">
+              <label for="to">До:</label>
+              <input type="text" id="to" name="to">
+          </div>
+      </div>
+      <div class="choose-category-container">
+        <div class="choose-category-text">
+          <p>Изберете категория:</p>
+        </div>
+        <select id="category" name="category">
+          <option value="hourly">Часови</option>
+          <option value="daily">Дневни</option>
+          <option value="monthly">Месечни</option>
+        </select>
+      </div>
+      <div class="button-container">
+        <button id="plot-btn">Покажи</button>
+      </div>
+      <div class="button-container">
+        <button id="export-btn">Експорт Замърсители</button>
+        <button id="export2-btn">Експорт Всички</button>
+      </div>
+    </div>
+
+    <!-- Plot containers -->
+    <div id="plot-container-1" class="plot-container"></div>
+    <div id="plot-container-2" class="plot-container"></div>
+    <div id="plot-container-3" class="plot-container"></div>
+  </div>
+</body>
+</html>

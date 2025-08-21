@@ -1,0 +1,413 @@
+/* General Body Styling */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f5f5f5;
+}
+
+/* Banner section */
+.banner {
+  text-align: center;
+  background-color: #62bf8f;
+  padding: 20px 0;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.banner h1 {
+  margin: 0;
+}
+
+/* Position the "Моментни данни" button to the left side */
+#moment-data-btn {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px 16px;
+  background-color: #4da877;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#moment-data-btn:hover {
+  background-color: #3b8e63;
+}
+
+/* Position the logout button to the right side */
+.logout-btn-container {
+  position: absolute;
+  top: 25%;
+  right: 10px;
+  text-align: right;
+}
+
+.logout-btn {
+  background-color: #4da877;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background-color: #3b8e63;
+}
+
+/* Container Styling */
+.container {
+  display: none;
+  padding: 20px;
+  text-align: center;
+}
+
+.container:not(.hidden) {
+  display: block;
+}
+
+.dashboard-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  margin: 20px;
+  text-align: center;
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 10px;
+}
+
+.dashboard-item {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+.dashboard-item .variable-name {
+  font-weight: bold;
+}
+
+.dashboard-item .variable-value {
+  font-size: 1.2em;
+  color: #333;
+}
+.dashboard-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 10px;
+  padding: 15px;
+  width: 97%;
+  border: 2px solid #000; /* Add a 2px solid black border */
+}
+
+.dashboard-card.full-width {
+    width: 97%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Container for the label */
+.choose-period-text {
+  display: flex;
+  justify-content: center;  /* Centers the content horizontally */
+  align-items: center;      /* Centers the content vertically */
+  height: 50px;             /* Optional: Sets the height to ensure vertical centering */
+  font-size: 16px;
+  color: #333;              /* Optional: Adjust text color */
+  margin-bottom: 20px;      /* Optional: Adds space below the label */
+}
+/* Controls Section */
+.controls {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 20px auto;
+  width: 85%;
+  max-width: 600px;
+  font-size: 16px;
+}
+
+.controls p {
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #333;
+}
+/* Date Picker Styling */
+.date-picker-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Optional: Center-align the labels and inputs */
+    gap: 10px; /* Adds space between the rows */
+    margin: 10px 0; /* Optional: Add spacing above and below */
+}
+
+.date-picker-field {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Align labels and inputs to the left */
+    gap: 5px; /* Adds space between the label and input */
+}
+
+.date-picker-container label {
+    font-weight: bold; /* Make the labels more prominent */
+    margin-bottom: 5px; /* Add space below the label */
+}
+
+.date-picker-container input {
+    width: 200px; /* Set a fixed width for the input fields */
+    padding: 5px; /* Add padding for better appearance */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Customizing the Datepicker Popup */
+.ui-datepicker {
+  background-color: #f5f5f5; /* Light background for the calendar */
+  border-radius: 5px; /* Rounded corners */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+  font-family: Arial, sans-serif; /* Consistent font */
+}
+
+.ui-datepicker-header {
+  background-color: #4da877; /* Green header for the calendar */
+  color: white; /* White text on the header */
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  padding: 10px;
+}
+
+.ui-datepicker-title {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.ui-datepicker-calendar {
+  background-color: white; /* White background for the calendar grid */
+  border-radius: 5px;
+  border-collapse: collapse;
+}
+
+.ui-datepicker-calendar th, .ui-datepicker-calendar td {
+  padding: 8px;
+  text-align: center;
+}
+
+.ui-datepicker-calendar td a {
+  color: #4da877; /* Green for date numbers */
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.ui-datepicker-calendar td a:hover {
+  background-color: #e0f7e4; /* Light green background on hover */
+  border-radius: 5px;
+}
+
+.ui-datepicker-calendar .ui-state-active {
+  background-color: #4da877; /* Highlight selected date with a green background */
+  color: white;
+}
+
+.ui-datepicker-calendar .ui-state-hover {
+  background-color: #e0f7e4; /* Light green background on hover */
+}
+
+/* Styling for the days and navigation arrows */
+.ui-datepicker-prev, .ui-datepicker-next {
+  background-color: #4da877;
+  color: white;
+  border-radius: 50%;
+  padding: 5px;
+}
+
+.ui-datepicker-prev:hover, .ui-datepicker-next:hover {
+  background-color: #3b8e63; /* Darker green on hover */
+}
+
+/* Category Select Styling */
+.choose-category-container {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.choose-category-container label {
+  font-size: 14px;
+  color: #333;
+  display: block;
+}
+
+.choose-category-container select {
+  padding: 8px;
+  font-size: 14px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  width: 200px;
+}
+
+.choose-category-container select:focus {
+  border-color: #4da877;
+  outline: none;
+}
+/* Container for the category label */
+.choose-category-text {
+  display: flex;
+  justify-content: center;  /* Centers the content horizontally */
+  align-items: center;      /* Centers the content vertically */
+  height: 50px;             /* Optional: Sets the height to ensure vertical centering */
+  font-size: 16px;
+  color: #333;              /* Optional: Adjust text color */
+  margin-bottom: 20px;      /* Optional: Adds space below the label */
+}
+
+/* Button Styling */
+.button-container {
+  text-align: center;
+}
+
+button {
+  background-color: #4da877;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 10px 5px;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #3b8e63;
+}
+
+/* Plot Container Styling */
+.plot-container {
+  width: 100%;
+  height: 600px;
+  margin: 20px auto;
+  display: flex;
+  justify-content: center;  /* Center horizontally */
+  align-items: center;
+  text-align: center;
+}
+
+
+.plot-image {
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+      max-width: 100%;
+      height: auto;
+}
+
+@media (max-width: 768px) {
+  .banner {
+    text-align: center;
+    padding: 10px 0;
+    margin-bottom: 20px;
+  }
+
+  .banner h1 {
+    margin-bottom: 20px;
+  }
+
+  #moment-data-btn,
+  .logout-btn-container {
+    position: static; /* Reset positioning to flow naturally */
+    transform: none; /* Remove the centering transformation */
+    margin-bottom: 10px; /* Add space between the buttons */
+    width: 90%; /* Ensure buttons are easy to tap */
+    max-width: 300px;
+    text-align: center;
+  }
+
+  .logout-btn-container {
+    margin: 0 auto 10px; /* Center and space below */
+  }
+
+  .logout-btn {
+    display: inline-block;
+    width: 100%; /* Make the logout button full-width */
+  }
+
+  #moment-data-btn {
+    display: inline-block;
+    width: 100%; /* Make the moment data button full-width */
+  }
+
+  img {
+    max-width: 100%; /* Ensures the image scales to the full width of the screen */
+    height: auto;    /* Keeps the image's aspect ratio */
+  }
+}
+
+:root {
+  font-size: 16px;
+}
+
+body {
+  font-size: 1rem;
+}
+
+.low-value {
+    background-color: #ffcccc; /* Light red for low values */
+    color: #900; /* Darker text for contrast */
+}
+
+.high-value {
+    background-color: #ccffcc; /* Light green for high values */
+    color: #060; /* Darker text for contrast */
+}
+
+.normal-value {
+    background-color: #f9f9f9; /* Neutral background */
+    color: #333; /* Default text color */
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 1000;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(0, 0, 0, 0.2);
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-container p {
+    margin-top: 20px;
+    font-size: 18px;
+    color: #333;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

@@ -1,0 +1,12 @@
+<tr>
+  {% for col in columns %}
+  <th>{{ col }}</th>
+  {% endfor %}
+</tr>
+{% for row in df_last_min_status %}
+<tr>
+  {% for col in columns %}
+  <td>{{ row[col] }}</td>
+  {% endfor %}
+</tr>
+{% endfor %}

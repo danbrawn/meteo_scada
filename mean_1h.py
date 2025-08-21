@@ -1,0 +1,252 @@
+
+from datetime import datetime, timedelta
+import pandas as pd
+import sqlalchemy
+import sqlalchemy as sa
+import sys
+import numpy as np
+import configparser
+import os
+import logging
+from logging.handlers import RotatingFileHandler
+
+
+def setup_logger(log_filename):
+    log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    if not os.path.exists(log_filename):
+        open(log_filename, 'w').close()
+
+    log_handler = RotatingFileHandler(log_filename, mode='a', maxBytes=10 * 1024 * 1024, backupCount=5)
+    log_handler.setFormatter(log_formatter)
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(log_handler)
+
+    return logger
+
+
+log_filename = 'mean1H_LOG.log'
+logger = setup_logger(log_filename)
+
+# Load configuration from config.ini
+with open('config.ini', 'r', encoding='utf-8') as config_file:
+    config = configparser.ConfigParser()
+    config.read_file(config_file)
+
+# Get the column names as a comma-separated string from the INI file
+columns_string = config.get('SQL', 'columns_list')
+columns_string_status = config.get('SQL', 'columns_list_status')
+
+# Split the comma-separated string into a list of column names
+columns_list = [column.strip() for column in columns_string.split(',')]
+columns_list_status = [column.strip() for column in columns_string_status.split(',')]
+
+# Create the DataFrame with the new column "Note" plus the columns from the config file
+output_data = pd.DataFrame(columns=columns_list)
+# raw_data = pd.DataFrame(columns=columns_list + ['INE', 'PPI', 'NPS', 'GAS', 'PAS', 'IZS'] + columns_list_status)
+# temp_data = pd.DataFrame(columns=columns_list + ['INE', 'PPI', 'NPS', 'GAS', 'PAS', 'IZS'] + columns_list_status)
+raw_data = pd.DataFrame(columns=['DateRef']+columns_list + columns_list_status)
+temp_data = pd.DataFrame(columns=['DateRef']+columns_list + columns_list_status)
+
+engine = None
+output_columns = len(columns_list)
+#data_columns_raw = len(columns_list) + 6 + len(columns_list_status)  #1 (dateCols) + data_cols + notes_cols(ine,ppi,nps...)
+data_columns_raw = len(columns_list) + len(columns_list_status)  #1 (dateCols) + data_cols + notes_cols(ine,ppi,nps...)
+
+now = datetime.now()
+minutesFromHourStarted = now.minute
+secondsFromHourStarted = now.second
+# Check if the mean_1h.py script is run with input parameters
+if len(sys.argv) > 2:
+    start_time = datetime.strptime(sys.argv[1], "%Y-%m-%d %H:%M:%S")
+    end_time_manual = datetime.strptime(sys.argv[2], "%Y-%m-%d %H:%M:%S")
+else:
+    start_time = datetime.now()-timedelta(hours=1)
+    start_time = start_time.replace(minute=0, second=0, microsecond=0)
+    end_time_manual = start_time
+
+# end_time = sys.argv[2] if len(sys.argv) > 1 else datetime.now()-timedelta(minutes=minutesFromHourStarted)
+
+def openSQLconnection(start_date):
+    global output_data
+    global start_time
+    global end_time
+    global raw_data
+    global engine
+    global config
+
+    # Get the parameter values from the 'SQL' section
+    user = config.get('SQL', 'user')
+    password = config.get('SQL', 'password')
+    host = config.get('SQL', 'host')
+    port = config.get('SQL', 'port')
+    database = config.get('SQL', 'database')
+    raw_table = config.get('SQL', 'DB_TABLE_MIN')
+
+    # Connect to the MySQL database using SQLAlchemy
+    conn_str = f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}'
+    engine = sa.create_engine(conn_str, echo=True)
+
+    # Construct the list of column names for the query
+    query_columns = ", ".join(raw_data.columns)
+
+    try:
+        # Query the MySQL table and retrieve the data
+        query = f"SELECT {query_columns} FROM {raw_table} WHERE DateRef BETWEEN %s AND %s ORDER BY DateIn"
+        start_time = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
+        end_time = start_time + timedelta(minutes=59, seconds=59)
+        raw_data = pd.read_sql(query, engine, params=(start_time, end_time))
+        if raw_data.empty:
+            output_data.at[0,'DateRef'] = start_time
+            output_data.iloc[0, 1:-1] = 'No Data'
+            output_data.replace('No Data', np.nan, inplace=True)
+            output_data.iloc[0, -1] = 'КГР'
+            return 'No_data_for_that_hour'
+        else:
+            raw_data['DateRef'] = pd.to_datetime(raw_data['DateRef'])  # Convert DateRef column to datetime type
+            return 'Exists_data_for_that_hour'
+        logger.info="SQL raw data is read"
+    except Exception as e:
+        logger.info = f"openSQLconnection {e}"
+    st=1
+
+
+def makeHourData():
+    global output_data, start_time, raw_data, temp_data, config
+
+    try:
+        # Initialize temp_data to hold all minute-level data
+        temp_data = []
+
+        # Loop through each minute of the hour and get data
+        for minute in range(60):
+            minute_start = start_time + timedelta(minutes=minute)
+            minute_end = minute_start + timedelta(minutes=1)
+
+            # Filter rows within the minute
+            minute_data = raw_data[(raw_data['DateRef'] >= minute_start) & (raw_data['DateRef'] < minute_end)]
+
+            # Use the last row if data exists, else append 'No Data'
+            if not minute_data.empty:
+                latest_row = minute_data.iloc[-1]
+                temp_data.append([minute_start] + list(latest_row[1:]))
+            else:
+                temp_data.append([minute_start] + ['No Data'] * (len(raw_data.columns) - 1))
+
+        # Convert temp_data to a DataFrame
+        temp_df = pd.DataFrame(temp_data, columns=raw_data.columns)
+
+        # Compute the mean for numeric columns (excluding 'DateRef')
+        mean_values = temp_df.iloc[:, 1:].apply(pd.to_numeric, errors='coerce').mean().round(4)
+
+        # Update output_data with the mean values
+        for col_name, value in mean_values.items():
+            output_data.at[0, col_name] = value
+
+        # Set 'DateRef' for the output_data
+        # output_data.at[0, 'DateRef'] = start_time
+        output_data.at[0, 'DateRef'] = start_time + pd.Timedelta(hours=1)
+
+        logger.info = "makeHourData ok"
+    except Exception as e:
+        logger.info = f"makeHourData {e}"
+
+
+def populateMean1hour():
+    global engine
+    global output_data
+    global config
+    mean_1hour_table=config.get('SQL', 'mean_1hour_table')
+    # Insert output_data into the "mean1hour" table using the opened sqlalchemy engine
+    try:
+        # NULL се замества с 0. Нужно ли е?
+        # Get the column names except the first and last columns
+        #columns_to_convert = output_data.columns[1:]
+
+        # Convert selected columns to float
+        #output_data[columns_to_convert] = output_data[columns_to_convert].astype(float)
+
+        # Now use to_sql() with your DataFrame
+        output_data.to_sql(mean_1hour_table, con=engine, if_exists='append', index=False)
+        # output_data.to_sql(mean_1hour_table, con=engine, if_exists='append', index=False,
+        #                    dtype={'Note': sqlalchemy.NVARCHAR(length=50)})
+        print( f"populateMean1hour ok")
+    except Exception as e:
+        print( f"populateMean1hour {e}")
+
+
+def closeSQLconnection():
+    global engine
+    # Close the MySQL connection
+    engine.dispose()
+
+
+def mean_1h(start_datetime, end_datetime):
+    # Initialize necessary global variables and load configuration as required
+    start_time = start_datetime - timedelta(hours=1)
+    end_time_manual = end_datetime
+
+    # Make sure openSQLconnection, makeHourData, populateMean1hour, and closeSQLconnection
+    # functions are defined as in your existing script
+
+    # Execute the data extraction and processing loop
+    if end_time_manual > start_time:
+        time_difference = end_time_manual - start_time
+        time_difference_in_s = time_difference.total_seconds()
+        time_difference_in_h = int(divmod(time_difference_in_s, 3600)[0])
+        for day in range(1, time_difference_in_h + 1):  # Loop through each hour in the range
+            start_time = start_time + timedelta(hours=1)
+            result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
+            if result == 'No_data_for_that_hour':
+                populateMean1hour()
+            elif result == 'Exists_data_for_that_hour':
+                makeHourData()
+                populateMean1hour()
+            closeSQLconnection()
+    else:
+        result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
+        if result == 'No_data_for_that_hour':
+            populateMean1hour()
+        elif result == 'Exists_data_for_that_hour':
+            makeHourData()
+            populateMean1hour()
+        closeSQLconnection()
+
+
+#temp_date_str = '2024-07-01 09:00:00'
+#temp_date = datetime.strptime(temp_date_str, '%Y-%m-%d %H:%M:%S')
+#start_time = temp_date
+#end_time_manual=temp_date
+
+#for i in range(24):
+#result = openSQLconnection(temp_date_str) #'2023-05-17 13:00:00') #start_time)
+#
+# if end_time_manual > start_time:
+#     time_difference=end_time_manual-start_time
+#     time_difference_in_s=time_difference.total_seconds()
+#     time_difference_in_h=int(divmod(time_difference_in_s, 3600)[0])
+#     for day in range(1, time_difference_in_h+1):  # Loop through each day of June
+#         start_time = start_time + timedelta(hours=1)
+#         result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
+#         if result == 'No_data_for_that_hour':
+#             populateMean1hour()
+#         elif result == 'Exists_data_for_that_hour':
+#             makeHourData()
+#             populateMean1hour()
+#         closeSQLconnection()
+# else:
+#     result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
+#     if result == 'No_data_for_that_hour':
+#         populateMean1hour()
+#     elif result == 'Exists_data_for_that_hour':
+#         makeHourData()
+#         populateMean1hour()
+#     closeSQLconnection()
+#temp_date_str = temp_date.strftime('%Y-%m-%d %H:%M:%S')
+
+
+
+
+

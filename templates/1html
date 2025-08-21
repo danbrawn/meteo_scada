@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Мобилна станция РИОСВ</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <style>
+    .ui-datepicker {
+      font-size: 0.8em;
+    }
+    .banner {
+      text-align: center;
+      background-color: #62bf8f;
+      padding: 20px 0;
+      position: relative;
+    }
+    .banner h1 {
+      margin: 0;
+    }
+    .logout-btn-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+    .logout-btn {
+      background-color: #4da877;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .logout-btn:hover {
+      background-color: #3b8e63;
+    }
+    .content-container {
+      display: none;
+    }
+    #container-1, #container-2 {
+      margin: 20px;
+      display: none;
+    }
+    iframe {
+      width: 100%;
+      height: 500px;
+      border: none;
+    }
+  </style>
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+  <script>
+    $(function () {
+      $("#from").datepicker({ dateFormat: "yy-mm-dd" });
+      $("#to").datepicker({ dateFormat: "yy-mm-dd" });
+
+      // Show Container 1 by default on page load
+      $("#container-1").show();
+
+      // Handle "Моментни данни" button click
+      $("#moment-data-btn").click(function () {
+        $("#container-1").hide();
+        $("#container-2").show();
+      });
+
+      // Ensure page reload shows Container 1
+      window.onbeforeunload = function () {
+        $("#container-1").show();
+        $("#container-2").hide();
+      };
+    });
+
+
+      function exportData() {
+          var startDate = document.getElementById('from').value;
+          var endDate = document.getElementById('to').value;
+
+          // Ensure the date fields are filled
+          if (!startDate || !endDate) {
+              alert('Please select a valid date range.');
+              return;
+          }
+
+          var visibleTraces = [];
+          var plotData = document.getElementById('plot-container-1').data;
+
+          plotData.forEach(function(trace) {
+              // Check if the trace is visible
+              if (trace.visible === true || trace.visible === undefined) {
+                  visibleTraces.push(trace.name); // Ensure `trace.name` corresponds to column names
+              }
+          });
+
+          // Send data to backend
+          $.ajax({
+              type: 'POST',
+              url: '/export_to_excel',
+              contentType: 'application/json',
+              data: JSON.stringify({
+                  start_date: startDate,
+                  end_date: endDate,
+                  selected_traces: visibleTraces
+              }),
+              xhrFields: { responseType: 'blob' },
+              success: function(response) {
+                  // Handle file download
+                  var blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                  var fileName = `meteo_sni_${startDate}_${endDate}.xlsx`;
+                  var link = document.createElement('a');
+                  link.href = window.URL.createObjectURL(blob);
+                  link.download = fileName;
+                  link.click();
+              },
+              error: function(xhr, status, error) {
+                  console.error('Export failed:', error);
+                  alert('Failed to export data.');
+              }
+          });
+      }
+
+
+
+      function plotData() {
+        var startDate = document.getElementById('from').value;
+        var endDate = document.getElementById('to').value;
+        var category = document.getElementById('category').value;
+
+        $.ajax({
+            type: 'POST',
+            url: '/plot',
+            data: { start_date: startDate, end_date: endDate, category: category },
+            success: function(response) {
+                // Parse the JSON response for each plot
+                var plot1Data = JSON.parse(response.plot1);
+                var windRoseData = JSON.parse(response.wind_rose);
+                var plot3Data = JSON.parse(response.plot3);
+
+                // Array of container IDs and corresponding data
+                var plotContainers = [
+                    { id: 'plot-container-1', data: plot1Data },
+                    { id: 'plot-container-2', data: windRoseData },
+                    { id: 'plot-container-3', data: plot3Data }
+                ];
+
+                plotContainers.forEach(plot => {
+                    Plotly.purge(plot.id); // Clear any existing plot
+                    Plotly.newPlot(plot.id, plot.data.data, plot.data.layout, { responsive: true });
+
+                    // Adjust layout margins
+                    var updatedLayout = Object.assign({}, plot.data.layout, {
+                        margin: { l: 80, r: 80, t: 40, b: 40 }
+                    });
+                    Plotly.relayout(plot.id, updatedLayout);
+                });
+            },
+            error: function(err) {
+                console.error('Error fetching plot data:', err);
+                alert('Failed to load plot data. Please try again.');
+            }
+        });
+      }
+
+
+
+  </script>
+</head>
+<body>
+
+<div class="banner">
+  <h1>Мобилна станция РИОСВ</h1>
+  <div class="logout-btn-container">
+    <a href="{{ url_for('logout') }}">
+      <button class="logout-btn">Logout</button>
+    </a>
+  </div>
+  <button id="moment-data-btn" class="logout-btn">Моментни данни</button>
+</div>
+
+<!-- Container 1: Controls and Graphs -->
+<div id="container-1" class="content-container">
+  <div class="choose-period-text">
+    <p>Изберете времеви период</p>
+  </div>
+
+  <div class="date-picker-container">
+    <label for="from">От</label>
+    <input type="text" id="from" name="from">
+    <label for="to">до</label>
+    <input type="text" id="to" name="to">
+  </div>
+
+  <div class="choose-category-container">
+    <label for="category">Изберете категория:</label>
+    <select id="category" name="category">
+      <option value="hourly">Часови</option>
+      <option value="daily">Дневни</option>
+      <option value="monthly">Месечни</option>
+    </select>
+  </div>
+
+  <div class="plot-button-container">
+    <button onclick="plotData()">Покажи</button>
+  </div>
+
+  <div class="export-button-container">
+    <button onclick="exportData()">Експорт към Excel</button>
+  </div>
+
+  <div id="plot-container-1" style="height: 400px;"></div>
+  <div id="plot-container-2" style="height: 400px;"></div>
+  <div id="plot-container-3" style="height: 400px;"></div>
+</div>
+
+<!-- Container 2: Embedded Webpage -->
+<div id="container-2" class="content-container">
+  <iframe src="https://example.com" title="Моментни данни"></iframe>
+</div>
+
+</body>
+</html>
