@@ -154,9 +154,10 @@ body {
   border: 1px solid #ddd;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  margin: 10px;
+  margin: 10px auto;
   padding: 15px;
-  width: 97%;
+  width: 90%;
+  max-width: 500px;
 }
 
 .dashboard-card.full-width {
@@ -193,6 +194,33 @@ body {
   font-weight: bold;
   margin-bottom: 20px;
   color: #333;
+}
+/* Statistics lists */
+.stats-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.stats-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.stats-item:last-child {
+  border-bottom: none;
+}
+
+.stats-label {
+  font-weight: bold;
+  color: #333;
+}
+
+.stats-value {
+  color: #555;
 }
 /* Date Picker Styling */
 .date-picker-container {
