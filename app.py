@@ -74,10 +74,11 @@ COLUMNS_LIST_STATUS = [col.strip() for col in config.get('SQL', 'columns_list_st
 # Columns
 DATE_COLUMN = 'DateRef'
 RAW_DATA_COLUMNS = [col.strip() for col in config.get('SQL', 'columns_list').split(',')]
-CALCULATED_COLUMNS = ['RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR', 'EVAPOR_DAY']
+CALCULATED_COLUMNS = [col.strip() for col in config.get('SQL', 'calc_columns').split(',')]
 DATA_COLUMNS = RAW_DATA_COLUMNS + CALCULATED_COLUMNS
 RAW_UNITS = [col.strip() for col in config.get('SQL', 'columns_units_list').split(',')]
-CALCULATED_UNITS = ['mm', 'mm', 'mm', 'mm/day']
+CALCULATED_UNITS = [col.strip() for col in config.get('SQL', 'calc_units_list').split(',')]
+
 DATA_COLUMNS_UNITS = RAW_UNITS + CALCULATED_UNITS
 # Pollutant-specific configuration removed; initialize empty lists for compatibility
 POLLUTANT_COLUMNS = []
@@ -93,12 +94,8 @@ DATA_COLUMNS_NAMES = DATA_COLUMNS
 # Excel template file path
 EXCEL_TEMPLATE_PATH = 'template.xlsx'
 RAW_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
-CALCULATED_BG = [
-    'Дъжд за ден - сума от данните от началото на деня',
-    'Дъжд за месец - сума от данните от началото на месеца',
-    'Дъжд за година - сума от данните от началото на годината',
-    'Изпарение - дневно - сума от данните от началото на деня'
-]
+CALCULATED_BG = [col.strip() for col in config.get('SQL', 'calc_columns_bg').split(',')]
+
 DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
 DATA_COLUMNS_STATUS_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_STATUS_BG').split(',')]
 # Variable to store the path of the saved plot image
@@ -362,6 +359,24 @@ def index():
     if 'username' not in session:  # Check if user is logged in
         return redirect(url_for('login'))  # Redirect to login if not authenticated
     return render_template('index.html')  # Serve the main page
+
+
+@app.route('/graphs')
+@login_required
+def graphs_page():
+    return render_template('graphs.html')
+
+
+@app.route('/statistics')
+@login_required
+def statistics_page():
+    return render_template('statistics.html')
+
+
+@app.route('/report')
+@login_required
+def report_page():
+    return render_template('report.html')
 
 
 @app.route('/plot', methods=['POST'])
