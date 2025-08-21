@@ -102,7 +102,7 @@ global my_df
 my_df = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 # Global dataframes to store the required data
 df_last_24_hours_data = pd.DataFrame(columns=[DATE_COLUMN] + RAW_DATA_COLUMNS)
-es = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
+df_last_min_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 df_last_hour_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 plots = []
 #
@@ -218,7 +218,6 @@ def update_dataframes():
                 if not last_24_hours_data:
                     query_last_24_hours_fallback = f"""
                         SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
-
                         FROM {DB_TABLE}
                         ORDER BY {DATE_COLUMN} DESC LIMIT 1
                     """
