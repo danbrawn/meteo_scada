@@ -98,6 +98,15 @@ body {
   box-sizing: border-box;
 }
 
+
+.dashboard-group h3 {
+  margin: 0 0 10px 0;
+  background-color: #d3d3d3;
+  color: #333;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+
 /* Fix for dashboard grid */
 /* Dashboard grid with consistent spacing between tiles */
 .dashboard-grid {

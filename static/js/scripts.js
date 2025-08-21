@@ -125,6 +125,7 @@ $(document).ready(function () {
                 const unit = columnUnits[columnOrder.indexOf(key)] || '';
 
                 let style = 'background-color: MediumSeaGreen; color: black;';
+
                 const value = data[key];
                 let maxThreshold = '';
 
@@ -151,6 +152,7 @@ $(document).ready(function () {
         });
 
         equalizeTiles();
+
     }
 
     function fetchMomentData() {
