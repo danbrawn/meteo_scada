@@ -1,7 +1,6 @@
 $(document).ready(function () {
   function listToHtml(items) {
     return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
-
   }
 
   fetch('/statistics_data')
@@ -15,5 +14,4 @@ $(document).ready(function () {
     .catch(err => {
       console.error('Error loading statistics', err);
     });
-
 });

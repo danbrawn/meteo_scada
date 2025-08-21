@@ -338,6 +338,7 @@ def _build_stats(period: str):
 
     try:
         db_connection = get_db_connection()
+        cursor = db_connection.cursor()
         query = (
             f"SELECT {DATE_COLUMN}, T_AIR, REL_HUM, P_REL, WIND_GUST, WIND_DIR, RAIN_MINUTE, EVAPOR_MINUTE, RADIATION "
             f"FROM {DB_TABLE_MIN}"
@@ -345,9 +346,28 @@ def _build_stats(period: str):
         params = None
         if start and end:
             query += f" WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} < %s"
-            params = (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S'))
-        df = pd.read_sql(query, db_connection, params=params, parse_dates=[DATE_COLUMN])
+            params = (
+                start.strftime('%Y-%m-%d %H:%M:%S'),
+                end.strftime('%Y-%m-%d %H:%M:%S'),
+            )
+        cursor.execute(query, params) if params else cursor.execute(query)
+        data = cursor.fetchall()
+        cursor.close()
         db_connection.close()
+        df = pd.DataFrame(
+            data,
+            columns=[
+                DATE_COLUMN,
+                "T_AIR",
+                "REL_HUM",
+                "P_REL",
+                "WIND_GUST",
+                "WIND_DIR",
+                "RAIN_MINUTE",
+                "EVAPOR_MINUTE",
+                "RADIATION",
+            ],
+        )
     except Exception as e:
         logger.error(f"Database error while building stats: {e}", exc_info=True)
         return []
