@@ -32,7 +32,7 @@ logger = setup_logger(log_filename)
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     config.read_file(config_file)
 
 # Get the column names as a comma-separated string from the INI file
