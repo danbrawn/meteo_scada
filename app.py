@@ -69,7 +69,6 @@ DB_PASSWORD = config.get('SQL', 'password')
 DB_NAME = config.get('SQL', 'database')
 DB_TABLE = config.get('SQL', 'mean_1hour_table')
 DB_TABLE_MIN = config.get('SQL', 'DB_TABLE_MIN')
-COLUMNS_LIST_STATUS = [col.strip() for col in config.get('SQL', 'columns_list_status').split(',')]
 
 # Columns
 DATE_COLUMN = 'DateRef'
@@ -95,7 +94,6 @@ EXCEL_TEMPLATE_PATH = 'template.xlsx'
 RAW_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
 CALCULATED_BG = [col.strip() for col in config.get('SQL', 'calc_columns_bg').split(',')]
 DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
-DATA_COLUMNS_STATUS_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_STATUS_BG').split(',')]
 # Variable to store the path of the saved plot image
 plot_image_path = 'plot.png'
 last_hour_update_time = None
@@ -103,9 +101,8 @@ last_hour_update_time = None
 global my_df
 my_df = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 # Global dataframes to store the required data
-df_last_24_hours_data = pd.DataFrame(columns=[DATE_COLUMN] + RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)
-df_last_min_status = pd.DataFrame(columns=[DATE_COLUMN] + COLUMNS_LIST_STATUS)
-df_last_min_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
+df_last_24_hours_data = pd.DataFrame(columns=[DATE_COLUMN] + RAW_DATA_COLUMNS)
+es = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 df_last_hour_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 plots = []
 #
@@ -192,7 +189,7 @@ TZ = pytz.timezone("Europe/Sofia")  # Adjust timezone as needed
 init = 0
 
 def update_dataframes():
-    global df_last_24_hours_data, df_last_min_status, df_last_min_values, df_last_hour_values
+    global df_last_24_hours_data, df_last_min_values, df_last_hour_values
 
     while True:
         try:
@@ -204,13 +201,12 @@ def update_dataframes():
                 now = datetime.now()
                 last_24_hours_start = now - timedelta(hours=25)
                 last_24_hours_start = last_24_hours_start.replace(minute=0,second=0,microsecond=0)
-                last_minute_start = now - timedelta(minutes=1)
 
                 cursor = db_connection.cursor()
 
                 # Query hourly data for the last 24 hours from mean_1hour_table
                 query_last_24_hours = f"""
-                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
+                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
                     FROM {DB_TABLE}
                     WHERE {DATE_COLUMN} >= %s
                     ORDER BY {DATE_COLUMN} DESC
@@ -221,7 +217,8 @@ def update_dataframes():
                 # Fallback: Get the last available row if no data exists for the last 24 hours
                 if not last_24_hours_data:
                     query_last_24_hours_fallback = f"""
-                        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
+                        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
+
                         FROM {DB_TABLE}
                         ORDER BY {DATE_COLUMN} DESC LIMIT 1
                     """
@@ -231,33 +228,22 @@ def update_dataframes():
                 # Convert the last 24 hours' data to a DataFrame
                 df_last_24_hours_data = pd.DataFrame(
                     last_24_hours_data,
-                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS
+                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
                 )
 
-                # Query the last minute's data for all columns from DB_TABLE_MIN
+                # Query the most recent record from DB_TABLE_MIN
                 query_last_minute = f"""
-                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
+                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
                     FROM {DB_TABLE_MIN}
-                    WHERE {DATE_COLUMN} >= %s
                     ORDER BY {DATE_COLUMN} DESC LIMIT 1
                 """
-                cursor.execute(query_last_minute, (last_minute_start.strftime('%Y-%m-%d %H:%M:%S'),))
+                cursor.execute(query_last_minute)
                 last_minute_data = cursor.fetchall()
-
-                # Fallback: Get the last available row if no data exists for the last minute
-                if not last_minute_data:
-                    query_last_minute_fallback = f"""
-                        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
-                        FROM {DB_TABLE_MIN}
-                        ORDER BY {DATE_COLUMN} DESC LIMIT 1
-                    """
-                    cursor.execute(query_last_minute_fallback)
-                    last_minute_data = cursor.fetchall()
 
                 # Convert the last minute's data to a DataFrame
                 df_last_min_data = pd.DataFrame(
                     last_minute_data,
-                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS
+                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
                 )
 
                 # Convert DATE_COLUMN to datetime
@@ -283,9 +269,6 @@ def update_dataframes():
                 df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
                 df_last_min_values.reset_index(inplace=True)
                 df_last_min_values = df_last_min_values.round(1)  # Round to 1 decimal place
-
-                df_last_min_status = df_last_min_data[COLUMNS_LIST_STATUS]
-                df_last_min_status.reset_index(inplace=True)
 
             # Handle hourly data directly from the mean_1hour_table
             if not df_last_24_hours_data.empty:
@@ -636,7 +619,7 @@ def insert_missing_data():
 
 @app.route('/moment_data', methods=['GET'])
 def moment_data():
-    global df_last_min_status, df_last_min_values, df_last_hour_values, last_hour_update_time,plots
+    global df_last_min_values, df_last_hour_values, last_hour_update_time, plots
 
     # Format DateRef fields
     def format_date(record):
@@ -664,31 +647,20 @@ def moment_data():
 
         # Copy and clean data for minute-by-minute updates
         if update_type == "last_minute":
-            df_last_min_status = df_last_min_status.copy()
             df_last_min_values = df_last_min_values.copy()
 
-            for df in [df_last_min_status, df_last_min_values]:
-                df.fillna(0, inplace=True)
-                df.round(1)
+            df_last_min_values.fillna(0, inplace=True)
+            df_last_min_values.round(1)
 
-            # Prepare data for last minute status and values
-            def prepare_data(df):
-                # return df.to_dict('records') if not df.empty else []
-                return df.reset_index(drop=True).to_dict('records') if not df.empty else []
-
-            status_data = prepare_data(df_last_min_status)
+            # Prepare data for last minute values
             min_values_data = prepare_data(df_last_min_values)
 
-            for record_set in [status_data, min_values_data]:
-                for record in record_set:
-                    format_date(record)
+            for record in min_values_data:
+                format_date(record)
 
             # Respond with only the minute data
             return jsonify({
-                "status_data": status_data,
                 "min_values_data": min_values_data,
-                "columns_status": COLUMNS_LIST_STATUS,
-                "columns_status_bg": DATA_COLUMNS_STATUS_BG,
                 "columns_values": DATA_COLUMNS,
                 "columns_bg": DATA_COLUMNS_BG,
                 "columns_units": DATA_COLUMNS_UNITS,
