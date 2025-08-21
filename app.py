@@ -151,12 +151,14 @@ def generate_plot(df, x_col, y_col, title, labels, text_format, height=500, widt
 
 
 def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
+    df = df.copy().sort_index()
     if 'RAIN_MINUTE' in df.columns:
+        df['RAIN_MINUTE'] = pd.to_numeric(df['RAIN_MINUTE'], errors='coerce')
         df['RAIN_DAY'] = df.groupby(df.index.date)['RAIN_MINUTE'].cumsum()
         df['RAIN_MONTH'] = df.groupby(df.index.to_period('M'))['RAIN_MINUTE'].cumsum()
         df['RAIN_YEAR'] = df.groupby(df.index.year)['RAIN_MINUTE'].cumsum()
     if 'EVAPOR_MINUTE' in df.columns:
+        df['EVAPOR_MINUTE'] = pd.to_numeric(df['EVAPOR_MINUTE'], errors='coerce')
         df['EVAPOR_DAY'] = df.groupby(df.index.date)['EVAPOR_MINUTE'].cumsum()
     return df
 # Function to establish a connection to the MySQL database
@@ -229,6 +231,10 @@ def update_dataframes():
                     last_24_hours_data,
                     columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
                 )
+                if not df_last_24_hours_data.empty:
+                    df_last_24_hours_data[RAW_DATA_COLUMNS] = df_last_24_hours_data[RAW_DATA_COLUMNS].apply(
+                        pd.to_numeric, errors='coerce'
+                    )
 
                 # Query the most recent record from DB_TABLE_MIN
                 query_last_minute = f"""
@@ -244,6 +250,10 @@ def update_dataframes():
                     last_minute_data,
                     columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
                 )
+                if not df_last_min_data.empty:
+                    df_last_min_data[RAW_DATA_COLUMNS] = df_last_min_data[RAW_DATA_COLUMNS].apply(
+                        pd.to_numeric, errors='coerce'
+                    )
 
                 # Convert DATE_COLUMN to datetime
                 if not df_last_24_hours_data.empty:
