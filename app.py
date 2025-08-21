@@ -102,7 +102,7 @@ global my_df
 my_df = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 # Global dataframes to store the required data
 df_last_24_hours_data = pd.DataFrame(columns=[DATE_COLUMN] + RAW_DATA_COLUMNS)
-df_last_min_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
+es = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 df_last_hour_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 plots = []
 #
@@ -218,6 +218,7 @@ def update_dataframes():
                 if not last_24_hours_data:
                     query_last_24_hours_fallback = f"""
                         SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
+
                         FROM {DB_TABLE}
                         ORDER BY {DATE_COLUMN} DESC LIMIT 1
                     """
@@ -777,7 +778,7 @@ if init == 0:
 
 if __name__ == '__main__':
     #insertMissingDataFromCSV.main()
-    #app.run(host='0.0.0.0', port=5010, debug=False)
+    app.run(host='0.0.0.0', port=5010, debug=False)
     # uncomment this to start in non production
-    serve(app, host='0.0.0.0', port=50023)
+    #serve(app, host='0.0.0.0', port=50023)
 
