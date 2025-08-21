@@ -25,8 +25,6 @@ from flask import (
     make_response,
     got_request_exception,
 )
-import plotly.express as px
-import plotly.graph_objects as go
 import pymysql
 import configparser
 import openpyxl
@@ -96,60 +94,11 @@ CALCULATED_BG = [col.strip() for col in config.get('SQL', 'calc_columns_bg').spl
 DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
 # Variable to store the path of the saved plot image
 plot_image_path = 'plot.png'
-last_hour_update_time = None
 
 global my_df
 my_df = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
-# Global dataframes to store the required data
-df_last_24_hours_data = pd.DataFrame(columns=[DATE_COLUMN] + RAW_DATA_COLUMNS)
+# Global dataframe to store the required data
 df_last_min_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
-df_last_hour_values = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
-plots = []
-#
-# def generate_plot(df, x_col, y_col, title, labels, text_format, height=500, width=800):
-#     try:
-#         fig = px.bar(
-#             df, x=x_col, y=y_col, title=title, labels=labels,
-#             text=df[y_col].apply(lambda x: text_format.format(x))
-#         )
-#         fig.update_layout(
-#             title={'x': 0.5, 'xanchor': 'center', 'font': {'size': 16}},
-#             height=height, width=width, margin={'t': 60, 'b': 60, 'l': 40, 'r': 40}
-#         )
-#         fig.update_traces(textposition="outside")
-#         return fig.to_html(full_html=False, config={'staticPlot': True})
-#     except Exception as e:
-#         print(f"Error generating plot for {y_col}: {e}")
-#         return None
-
-def generate_plot(df, x_col, y_col, title, labels, text_format, height=500, width=800):
-    try:
-        fig = px.bar(
-            df, x=x_col, y=y_col, title=title, labels=labels,
-            text=df[y_col].apply(lambda x: text_format.format(x))
-        )
-
-        # Reduce the number of x-axis labels by selecting every 6th hour
-        tickvals = df[x_col][::3]  # Adjust 6 to any number (e.g., 3 for every 3rd hour)
-
-        fig.update_layout(
-            title={'x': 0.5, 'xanchor': 'center', 'font': {'size': 16}},
-            height=height, width=width, margin={'t': 60, 'b': 60, 'l': 40, 'r': 40},
-            xaxis=dict(
-                tickmode="array",
-                tickvals=tickvals,  # Only show these values
-                ticktext=tickvals,  # Corresponding labels
-                tickangle=-45
-            )
-        )
-
-        fig.update_traces(textposition="outside")
-        return fig.to_json()
-    except Exception as e:
-        print(f"Error generating plot for {y_col}: {e}")
-        return None
-
-
 def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy().sort_index()
     if 'RAIN_MINUTE' in df.columns:
@@ -191,52 +140,13 @@ TZ = pytz.timezone("Europe/Sofia")  # Adjust timezone as needed
 init = 0
 
 def update_dataframes():
-    global df_last_24_hours_data, df_last_min_values, df_last_hour_values
+    global df_last_min_values
 
     while True:
         try:
-            # Connect to the database
             db_connection = get_db_connection()
-
             try:
-                # Define time ranges
-                now = datetime.now()
-                last_24_hours_start = now - timedelta(hours=25)
-                last_24_hours_start = last_24_hours_start.replace(minute=0,second=0,microsecond=0)
-
                 cursor = db_connection.cursor()
-
-                # Query hourly data for the last 24 hours from mean_1hour_table
-                query_last_24_hours = f"""
-                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
-                    FROM {DB_TABLE}
-                    WHERE {DATE_COLUMN} >= %s
-                    ORDER BY {DATE_COLUMN} DESC
-                """
-                cursor.execute(query_last_24_hours, (last_24_hours_start.strftime('%Y-%m-%d %H:%M:%S'),))
-                last_24_hours_data = cursor.fetchall()
-
-                # Fallback: Get the last available row if no data exists for the last 24 hours
-                if not last_24_hours_data:
-                    query_last_24_hours_fallback = f"""
-                        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
-                        FROM {DB_TABLE}
-                        ORDER BY {DATE_COLUMN} DESC LIMIT 1
-                    """
-                    cursor.execute(query_last_24_hours_fallback)
-                    last_24_hours_data = cursor.fetchall()
-
-                # Convert the last 24 hours' data to a DataFrame
-                df_last_24_hours_data = pd.DataFrame(
-                    last_24_hours_data,
-                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
-                )
-                if not df_last_24_hours_data.empty:
-                    df_last_24_hours_data[RAW_DATA_COLUMNS] = df_last_24_hours_data[RAW_DATA_COLUMNS].apply(
-                        pd.to_numeric, errors='coerce'
-                    )
-
-                # Query the most recent record from DB_TABLE_MIN
                 query_last_minute = f"""
                     SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
                     FROM {DB_TABLE_MIN}
@@ -245,7 +155,6 @@ def update_dataframes():
                 cursor.execute(query_last_minute)
                 last_minute_data = cursor.fetchall()
 
-                # Convert the last minute's data to a DataFrame
                 df_last_min_data = pd.DataFrame(
                     last_minute_data,
                     columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
@@ -254,51 +163,20 @@ def update_dataframes():
                     df_last_min_data[RAW_DATA_COLUMNS] = df_last_min_data[RAW_DATA_COLUMNS].apply(
                         pd.to_numeric, errors='coerce'
                     )
-
-                # Convert DATE_COLUMN to datetime
-                if not df_last_24_hours_data.empty:
-                    df_last_24_hours_data[DATE_COLUMN] = pd.to_datetime(df_last_24_hours_data[DATE_COLUMN])
-                    # df_last_24_hours_data["DateRef"] = pd.to_datetime(df_last_24_hours_data["DateRef"]) + pd.Timedelta(hours=1)
-                    df_last_24_hours_data.set_index(DATE_COLUMN, inplace=True)
-                    df_last_24_hours_data = add_calculated_columns(df_last_24_hours_data)
-
-                if not df_last_min_data.empty:
                     df_last_min_data[DATE_COLUMN] = pd.to_datetime(df_last_min_data[DATE_COLUMN])
                     df_last_min_data.set_index(DATE_COLUMN, inplace=True)
                     df_last_min_data = add_calculated_columns(df_last_min_data)
+
+                if not df_last_min_data.empty:
+                    df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
+                    df_last_min_values.reset_index(inplace=True)
+                    df_last_min_values = df_last_min_values.round(1)
             finally:
-                # Close the database connection
                 cursor.close()
                 db_connection.close()
-
-            DATE_FORMAT = "%Y-%m-%d %H:%M:%S"  # Change this to the format you want
-
-            # Handle last minute's data
-            if not df_last_min_data.empty:
-                df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
-                df_last_min_values.reset_index(inplace=True)
-                df_last_min_values = df_last_min_values.round(1)  # Round to 1 decimal place
-
-            # Handle hourly data directly from the mean_1hour_table
-            if not df_last_24_hours_data.empty:
-                if len(df_last_24_hours_data) > 1:
-                    df_last_hour_values = df_last_24_hours_data.iloc[:-1].copy()  # Safe slicing and copying
-                else:
-                    df_last_hour_values = df_last_24_hours_data.copy()  # Ensure a copy is made
-
-                df_last_hour_values = df_last_hour_values.reindex(columns=DATA_COLUMNS)
-                df_last_hour_values.reset_index(inplace=True)  # Drop old index
-
-                # Convert int/object columns to float
-                for col in df_last_hour_values.select_dtypes(include=['int', 'object']).columns:
-                    df_last_hour_values[col] = pd.to_numeric(df_last_hour_values[col], errors='coerce')
-
-                df_last_hour_values = df_last_hour_values.round(1)  # Round to 1 decimal place
-
         except Exception as e:
             logger.error(f"Error updating dataframes: {e}", exc_info=True)
 
-        # Sleep for 30 seconds before the next update
         time.sleep(30)
 
 
@@ -628,128 +506,40 @@ def insert_missing_data():
 
 @app.route('/moment_data', methods=['GET'])
 def moment_data():
-    global df_last_min_values, df_last_hour_values, last_hour_update_time, plots
+    global df_last_min_values
 
-    # Format DateRef fields
     def format_date(record):
         try:
             if 'DateRef' in record and record['DateRef']:
                 if isinstance(record['DateRef'], pd.Timestamp):
                     record['DateRef'] = record['DateRef'].strftime('%d.%m.%Y %H:%M')
                 else:
-                    record['DateRef'] = datetime.strptime(record['DateRef'], '%a, %d %b %Y %H:%M:%S %Z').strftime(
-                        '%d.%m.%Y %H:%M')
+                    record['DateRef'] = datetime.strptime(record['DateRef'], '%a, %d %b %Y %H:%M:%S %Z').strftime('%d.%m.%Y %H:%M')
         except Exception as e:
             print(f"Error formatting date: {e}")
 
-    # Prepare data for last minute status and values
     def prepare_data(df):
-        # return df.to_dict('records') if not df.empty else []
         return df.reset_index(drop=True).to_dict('records') if not df.empty else []
 
-
     try:
-        # Validate the requested update type
         update_type = request.args.get("update_type", "last_minute")
-        if update_type not in ["last_minute", "hourly"]:
+        if update_type != "last_minute":
             return jsonify({"error": "Invalid update_type"}), 400
 
-        # Copy and clean data for minute-by-minute updates
-        if update_type == "last_minute":
-            df_last_min_values = df_last_min_values.copy()
+        df_last_min = df_last_min_values.copy()
+        df_last_min.fillna(0, inplace=True)
+        df_last_min.round(1)
 
-            df_last_min_values.fillna(0, inplace=True)
-            df_last_min_values.round(1)
+        min_values_data = prepare_data(df_last_min)
+        for record in min_values_data:
+            format_date(record)
 
-            # Prepare data for last minute values
-            min_values_data = prepare_data(df_last_min_values)
-
-            for record in min_values_data:
-                format_date(record)
-
-            # Respond with only the minute data
-            return jsonify({
-                "min_values_data": min_values_data,
-                "columns_values": DATA_COLUMNS,
-                "columns_bg": DATA_COLUMNS_BG,
-                "columns_units": DATA_COLUMNS_UNITS,
-            })
-
-        elif update_type == "hourly":
-            # Only prepare hourly data and plots if the update is required
-
-            try:
-                now = datetime.now()
-
-                # Return empty payload if no hourly data has been loaded yet
-                if df_last_hour_values.empty or 'DateRef' not in df_last_hour_values.columns:
-                    return jsonify({
-                        "success": True,
-                        "hour_values_data": [],
-                        "columns_values": DATA_COLUMNS,
-                        "columns_bg": DATA_COLUMNS_BG,
-                        "columns_units": DATA_COLUMNS_UNITS,
-                        "plots": []
-                    })
-
-                if last_hour_update_time is None or (now - last_hour_update_time).total_seconds() > 3 * 60:
-                    # Update the last hour update time
-                    last_hour_update_time = now
-
-                    # Fill NA values and sort the DataFrame by DateRef
-                    df_last_hour_values = df_last_hour_values.fillna(0).sort_values(by="DateRef", ascending=False)
-                    # Format the DateRef column once for consistent format
-                    df_last_hour_values['DateRef'] = df_last_hour_values['DateRef'].apply(
-                        lambda x: x.strftime('%d.%m.%Y %H:%M') if isinstance(x, pd.Timestamp) else x
-                    )
-
-                    df_last_hour_values = df_last_hour_values.round(1)
-                    # Prepare the data and sort again if necessary
-                    hour_values_data = prepare_data(df_last_hour_values)
-                    df_last_hour_values = df_last_hour_values.sort_values(by="DateRef", ascending=True)
-
-                    # Generate plots and other data processing logic
-                    plots = []
-
-                    # Generate plots for each configured column
-                    for col, bg_name, unit in zip(DATA_COLUMNS, DATA_COLUMNS_BG, DATA_COLUMNS_UNITS):
-                        title = f"Средночасови стойности за {bg_name} [{unit}] през последните 24 часа"
-                        labels = {"DateRef": "Час", col: f"[{unit}]"}
-                        plot = generate_plot(df_last_hour_values, "DateRef", col, title, labels, "{:.1f}")
-                        if plot:
-                            plots.append(plot)
-
-                    return jsonify({
-                        "success": True,
-                        "hour_values_data": hour_values_data,
-                        "columns_values": DATA_COLUMNS,
-                        "columns_bg": DATA_COLUMNS_BG,
-                        "columns_units": DATA_COLUMNS_UNITS,
-                        "plots": plots
-                    })
-                else:
-                    # Return the existing hourly data if within the time window
-
-                    df_last_hour_values = df_last_hour_values.fillna(0).sort_values(by="DateRef", ascending=False)
-                    # Format the DateRef column once for consistent format
-                    df_last_hour_values['DateRef'] = df_last_hour_values['DateRef'].apply(
-                        lambda x: x.strftime('%d.%m.%Y %H:%M') if isinstance(x, pd.Timestamp) else x
-                    )
-                    df_last_hour_values = df_last_hour_values.round(1)
-                    hour_values_data = prepare_data(df_last_hour_values)
-                    return jsonify({
-                        "success": True,
-                        "hour_values_data": hour_values_data,
-                        "columns_values": DATA_COLUMNS,
-                        "columns_bg": DATA_COLUMNS_BG,
-                        "columns_units": DATA_COLUMNS_UNITS,
-                        "plots": plots
-                    })
-
-            except Exception as e:
-                print(f"Error processing hourly data: {e}")
-                return jsonify({"error": f"Error processing hourly data: {str(e)}"}), 500        # If update_type is invalid
-        return jsonify({"error": "Invalid update_type"}), 400
+        return jsonify({
+            "min_values_data": min_values_data,
+            "columns_values": DATA_COLUMNS,
+            "columns_bg": DATA_COLUMNS_BG,
+            "columns_units": DATA_COLUMNS_UNITS,
+        })
 
     except Exception as e:
         print(f"Error in /moment_data endpoint: {str(e)}")
