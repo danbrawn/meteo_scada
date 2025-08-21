@@ -303,6 +303,148 @@ def statistics_page():
     return render_template('statistics.html')
 
 
+def _format_dt(dt: datetime) -> str:
+    return dt.strftime('%Y-%m-%d %H:%M')
+
+
+def _min_max_with_time(df: pd.DataFrame, column: str):
+    series = df[column].dropna()
+    if series.empty:
+        return None
+    min_time = series.idxmin()
+    max_time = series.idxmax()
+    return {
+        'min': float(series.loc[min_time]),
+        'min_time': _format_dt(min_time),
+        'max': float(series.loc[max_time]),
+        'max_time': _format_dt(max_time),
+    }
+
+
+def _build_stats(period: str):
+    now = datetime.now()
+    if period == 'today':
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+    elif period == 'month':
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = (start + timedelta(days=32)).replace(day=1)
+    elif period == 'year':
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = start.replace(year=start.year + 1)
+    else:
+        start = None
+        end = None
+
+    try:
+        db_connection = get_db_connection()
+        query = (
+            f"SELECT {DATE_COLUMN}, T_AIR, REL_HUM, P_REL, WIND_GUST, WIND_DIR, RAIN_MINUTE, EVAPOR_MINUTE, RADIATION "
+            f"FROM {DB_TABLE_MIN}"
+        )
+        params = None
+        if start and end:
+            query += f" WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} < %s"
+            params = (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S'))
+        df = pd.read_sql(query, db_connection, params=params, parse_dates=[DATE_COLUMN])
+        db_connection.close()
+    except Exception as e:
+        logger.error(f"Database error while building stats: {e}", exc_info=True)
+        return []
+
+    if df.empty:
+        return []
+
+    for col in ['T_AIR', 'REL_HUM', 'P_REL', 'WIND_GUST', 'WIND_DIR', 'RAIN_MINUTE', 'EVAPOR_MINUTE', 'RADIATION']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
+    df.set_index(DATE_COLUMN, inplace=True)
+
+    result = []
+    temp = _min_max_with_time(df, 'T_AIR')
+    if temp:
+        result.append(
+            f"Температура: мин {temp['min']:.1f}°C ({temp['min_time']}), "
+            f"макс {temp['max']:.1f}°C ({temp['max_time']})"
+        )
+
+    hum = _min_max_with_time(df, 'REL_HUM')
+    if hum:
+        result.append(
+            f"Относителна влажност: мин {hum['min']:.1f}% ({hum['min_time']}), "
+            f"макс {hum['max']:.1f}% ({hum['max_time']})"
+        )
+
+    press = _min_max_with_time(df, 'P_REL')
+    if press:
+        result.append(
+            f"Атмосферно налягане: мин {press['min']:.1f} hPa ({press['min_time']}), "
+            f"макс {press['max']:.1f} hPa ({press['max_time']})"
+        )
+
+    gust_series = df['WIND_GUST'].dropna()
+    if not gust_series.empty:
+        gust_time = gust_series.idxmax()
+        gust_value = float(gust_series.loc[gust_time])
+        direction = df.loc[gust_time, 'WIND_DIR'] if 'WIND_DIR' in df.columns else None
+        dir_text = f", посока {direction}" if pd.notnull(direction) else ''
+        result.append(
+            f"Порив на вятъра: макс {gust_value:.1f} km/h{dir_text} ({_format_dt(gust_time)})"
+        )
+
+    rain_total = df['RAIN_MINUTE'].dropna().sum()
+    if rain_total and period == 'today':
+        result.append(f"Сума дъжд за деня: {rain_total:.1f} mm")
+    elif rain_total:
+        result.append(f"Сума дъжд: {rain_total:.1f} mm")
+
+    if period == 'today':
+        evap_total = df['EVAPOR_MINUTE'].dropna().sum()
+        if evap_total:
+            result.append(f"Изпарение за деня: {evap_total:.1f} mm")
+
+    if period != 'today' and not df['RAIN_MINUTE'].dropna().empty:
+        daily_rain = df['RAIN_MINUTE'].resample('D').sum()
+        max_day = daily_rain.max()
+        max_day_time = _format_dt(daily_rain.idxmax())
+        result.append(f"Макс за ден: {max_day:.1f} mm ({max_day_time})")
+        intensity_series = df['RAIN_MINUTE'].dropna()
+        intensity_time = intensity_series.idxmax()
+        result.append(
+            f"Макс интензитет: {float(intensity_series.loc[intensity_time]):.1f} mm/min "
+            f"({_format_dt(intensity_time)})"
+        )
+
+    rad_series = df['RADIATION'].dropna()
+    if not rad_series.empty:
+        rad_time = rad_series.idxmax()
+        rad_max = float(rad_series.loc[rad_time])
+        rad_sum = float(rad_series.sum())
+        result.append(
+            f"Глобална радиация: макс {rad_max:.1f} W/m² ({_format_dt(rad_time)})"
+        )
+        result.append(f"Сума глобална радиация: {rad_sum:.1f} W/m²")
+
+    return result
+
+
+@app.route('/statistics_data')
+@login_required
+def statistics_data():
+    try:
+        data = {
+            'today': _build_stats('today'),
+            'month': _build_stats('month'),
+            'year': _build_stats('year'),
+            'all': _build_stats('all'),
+        }
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error in /statistics_data endpoint: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/report')
 @login_required
 def report_page():
