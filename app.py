@@ -235,6 +235,67 @@ def graphs_page():
     return render_template('graphs.html')
 
 
+@app.route('/graph_data', methods=['GET'])
+@login_required
+def graph_data():
+    period = request.args.get('period', '24h')
+    try:
+        db_connection = get_db_connection()
+        cursor = db_connection.cursor()
+        end_time = datetime.now()
+
+        if period == '24h':
+            start_time = end_time - timedelta(hours=24)
+            table = DB_TABLE_MIN
+        elif period == '30d':
+            start_time = end_time - timedelta(days=30)
+            table = DB_TABLE
+        else:
+            start_time = end_time - timedelta(days=365)
+            table = DB_TABLE
+
+        query = (
+            f"SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)} FROM {table} "
+            f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s ORDER BY {DATE_COLUMN} ASC"
+        )
+        cursor.execute(
+            query,
+            (
+                start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                end_time.strftime('%Y-%m-%d %H:%M:%S'),
+            ),
+        )
+        data = cursor.fetchall()
+        cursor.close()
+        db_connection.close()
+
+        df = pd.DataFrame(data, columns=[DATE_COLUMN] + RAW_DATA_COLUMNS)
+        if df.empty:
+            return jsonify({})
+
+        df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
+        df.set_index(DATE_COLUMN, inplace=True)
+
+        if period == '24h':
+            df_others = df.drop(columns=['RADIATION']).resample('10min').mean()
+            rad = df['RADIATION'].resample('h').mean()
+            df_res = df_others.join(rad)
+        else:
+            df_others = df.drop(columns=['RADIATION']).resample('d').mean()
+            rad = df['RADIATION'].resample('d').sum() / 1000
+            df_res = df_others.join(rad.rename('RADIATION'))
+
+        df_res = df_res.dropna(how='all')
+        df_res.reset_index(inplace=True)
+
+        result = {col: df_res[col].tolist() for col in df_res.columns}
+        result[DATE_COLUMN] = [ts.isoformat() for ts in result[DATE_COLUMN]]
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in /graph_data endpoint: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/statistics')
 @login_required
 def statistics_page():
