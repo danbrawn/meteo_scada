@@ -58,7 +58,7 @@ logger.addHandler(file_handler)
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     config.read_file(config_file)
 
 # MySQL Database Configuration
