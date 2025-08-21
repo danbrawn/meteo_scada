@@ -13,6 +13,7 @@ $(document).ready(function() {
     { key: 'EVAPOR_DAY', name: 'Изпарение mm/d' }
   ];
   const days = Array.from({length: 31}, (_, i) => i + 1);
+  let currentData = {};
 
   function buildTable(data) {
     let thead = '<tr><th class="sticky-col">Параметър</th>' +
@@ -22,7 +23,8 @@ $(document).ready(function() {
       const values = data[p.key] || [];
       const cells = days.map(d => {
         const v = values[d-1];
-        return `<td>${v !== undefined && v !== null ? v : ''}</td>`;
+        return `<td>${v !== undefined && v !== null ? Number(v).toFixed(1) : ''}</td>`;
+
       }).join('');
       return `<tr><td class="sticky-col">${p.name}</td>${cells}</tr>`;
     }).join('');
@@ -32,6 +34,7 @@ $(document).ready(function() {
   function loadData(year, month) {
     $.getJSON(`/report_data?year=${year}&month=${month}`)
       .done(function(data) {
+        currentData = data;
         buildTable(data);
       })
       .fail(function() {
@@ -56,5 +59,28 @@ $(document).ready(function() {
     loadData(yearSelect.val(), monthSelect.val());
   });
 
+  $('#export-csv').on('click', function() {
+    const year = yearSelect.val();
+    const month = String(monthSelect.val()).padStart(2, '0');
+    let csv = ['Параметър,' + days.join(',')];
+    params.forEach(p => {
+      const values = currentData[p.key] || [];
+      const row = [p.name];
+      for (let i = 0; i < days.length; i++) {
+        const v = values[i];
+        row.push(v !== undefined && v !== null ? Number(v).toFixed(1) : '');
+      }
+      csv.push(row.join(','));
+    });
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Meteo_Dushanci_${month}_${year}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  });
   loadData(currentYear, new Date().getMonth() + 1);
 });
