@@ -311,12 +311,14 @@ def _min_max_with_time(df: pd.DataFrame, column: str):
     series = df[column].dropna()
     if series.empty:
         return None
+    min_val = series.min()
     min_time = series.idxmin()
+    max_val = series.max()
     max_time = series.idxmax()
     return {
-        'min': float(series.loc[min_time]),
+        'min': float(min_val),
         'min_time': _format_dt(min_time),
-        'max': float(series.loc[max_time]),
+        'max': float(max_val),
         'max_time': _format_dt(max_time),
     }
 
@@ -409,9 +411,14 @@ def _build_stats(period: str):
 
     gust_series = df['WIND_GUST'].dropna()
     if not gust_series.empty:
+        gust_value = float(gust_series.max())
         gust_time = gust_series.idxmax()
-        gust_value = float(gust_series.loc[gust_time])
-        direction = df.loc[gust_time, 'WIND_DIR'] if 'WIND_DIR' in df.columns else None
+        direction = None
+        if 'WIND_DIR' in df.columns:
+            dir_val = df.loc[gust_time, 'WIND_DIR']
+            if isinstance(dir_val, pd.Series):
+                dir_val = dir_val.iloc[0]
+            direction = dir_val
         dir_text = f", посока {direction}" if pd.notnull(direction) else ''
         result.append({
             "label": "Порив на вятъра",
@@ -447,16 +454,18 @@ def _build_stats(period: str):
             "value": f"{max_day:.1f} mm ({max_day_time})",
         })
         intensity_series = df['RAIN_MINUTE'].dropna()
-        intensity_time = intensity_series.idxmax()
-        result.append({
-            "label": "Макс интензитет",
-            "value": f"{float(intensity_series.loc[intensity_time]):.1f} mm/min ({_format_dt(intensity_time)})",
-        })
+        if not intensity_series.empty:
+            intensity_value = float(intensity_series.max())
+            intensity_time = intensity_series.idxmax()
+            result.append({
+                "label": "Макс интензитет",
+                "value": f"{intensity_value:.1f} mm/min ({_format_dt(intensity_time)})",
+            })
 
     rad_series = df['RADIATION'].dropna()
     if not rad_series.empty:
+        rad_max = float(rad_series.max())
         rad_time = rad_series.idxmax()
-        rad_max = float(rad_series.loc[rad_time])
         rad_sum = float(rad_series.sum())
         result.append({
             "label": "Глобална радиация",
