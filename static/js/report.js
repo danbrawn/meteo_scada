@@ -24,6 +24,7 @@ $(document).ready(function() {
       const cells = days.map(d => {
         const v = values[d-1];
         return `<td>${v !== undefined && v !== null ? Number(v).toFixed(1) : ''}</td>`;
+
       }).join('');
       return `<tr><td class="sticky-col">${p.name}</td>${cells}</tr>`;
     }).join('');
@@ -81,6 +82,5 @@ $(document).ready(function() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   });
-
   loadData(currentYear, new Date().getMonth() + 1);
 });
