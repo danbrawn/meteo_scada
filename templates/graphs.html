@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Графики</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="{{ url_for('static', filename='js/graphs.js') }}" defer></script>
+</head>
+<body>
+  <div class="banner">
+    <nav class="navbar">
+      <a href="/">Моментни данни</a>
+      <a href="/graphs">Графики</a>
+      <a href="/statistics">Статистика</a>
+      <a href="/report">Справка</a>
+    </nav>
+    <div class="logout-btn-container">
+      <a href="{{ url_for('logout') }}">
+        <button class="logout-btn">Logout</button>
+      </a>
+    </div>
+  </div>
+  <div class="container" id="graphs-container">
+    <div class="controls">
+      <select id="period-select">
+        <option value="24h">Последни 24 часа</option>
+        <option value="30d">Последни 30 дни</option>
+        <option value="365d">Последни 365 дни</option>
+      </select>
+    </div>
+    <div id="graph-temp-hum" class="dashboard-card full-width"></div>
+    <div id="graph-pressure" class="dashboard-card full-width"></div>
+    <div id="graph-wind" class="dashboard-card full-width"></div>
+    <div id="graph-rain" class="dashboard-card full-width"></div>
+    <div id="graph-radiation" class="dashboard-card full-width"></div>
+  </div>
+</body>
+</html>
