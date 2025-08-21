@@ -88,9 +88,14 @@ body {
   margin-bottom: 20px;
 }
 
+
 .dashboard-group h3 {
-  margin: 10px 0;
-}
+  margin: 0 0 10px 0;
+  background-color: #d3d3d3;
+  color: #333;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
 
 /* Fix for dashboard grid */
 .dashboard-grid {
@@ -112,7 +117,10 @@ body {
   justify-content: center;
   text-align: center;
   box-sizing: border-box; /* Include padding and border in size calculation */
-  width: 100%; /* Ensure all items have consistent width */}
+  width: 100%; /* Ensure all items have consistent width */
+  background-color: MediumSeaGreen;
+  color: black;
+}
 .moment-data-container{
   margin: 5px auto !important;
   width: 100% !important;

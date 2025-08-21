@@ -1,4 +1,24 @@
 $(document).ready(function () {
+    function equalizeItemSize() {
+        const items = $('.dashboard-item');
+        if (!items.length) return;
+
+        let minWidth = Infinity;
+        let minHeight = Infinity;
+
+        items.each(function () {
+            const w = $(this).outerWidth();
+            const h = $(this).outerHeight();
+            if (w < minWidth) minWidth = w;
+            if (h < minHeight) minHeight = h;
+        });
+
+        items.css({ width: minWidth, height: minHeight });
+        $('.dashboard-grid').css({
+            'grid-template-columns': `repeat(auto-fill, ${minWidth}px)`,
+            'grid-auto-rows': `${minHeight}px`
+        });
+    }
 
     function renderDashboard(data, columnOrder, columnUnits, columnNamesBG) {
         const container = $('#last-min-values-dashboard');
@@ -88,13 +108,20 @@ $(document).ready(function () {
         };
 
         const columnGroups = {
-            'Общи параметри на въздуха': ['DateRef', 'T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER'],
+            'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER'],
+
             'Параметри на радиация': ['RADIATION'],
             'Изпарение': ['EVAPOR_MINUTE', 'EVAPOR_DAY'],
             'Параметри на вятъра': ['WIND_SPEED_1', 'WIND_SPEED_2', 'WIND_DIR', 'WIND_GUST'],
             'Атмосферно налягане': ['P_ABS', 'P_REL'],
             'Статистика за валежи': ['RAIN_MINUTE', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR']
         };
+
+        const timestamp = data['DateRef'];
+        if (timestamp) {
+            const formatted = timestamp.slice(0, 16);
+            $('#dashboard-title').text(`Данни за ${formatted}`);
+        }
 
         Object.entries(columnGroups).forEach(([groupName, keys]) => {
             const groupDiv = $('<div>').addClass('dashboard-group');
@@ -104,12 +131,11 @@ $(document).ready(function () {
             keys.forEach(key => {
                 if (!(key in data)) return;
 
-                const displayName = key === 'DateRef'
-                    ? 'Дата и час на записа'
-                    : columnNamesBG[columnOrder.indexOf(key)] || key;
-                const unit = key === 'DateRef' ? '' : columnUnits[columnOrder.indexOf(key)] || '';
+                const displayName = columnNamesBG[columnOrder.indexOf(key)] || key;
+                const unit = columnUnits[columnOrder.indexOf(key)] || '';
 
-                let style = 'background-color: Gainsboro; color: black;';
+                let style = 'background-color: MediumSeaGreen; color: black;';
+
                 const value = data[key];
                 let maxThreshold = '';
 
@@ -134,6 +160,9 @@ $(document).ready(function () {
             groupDiv.append(groupGrid);
             container.append(groupDiv);
         });
+
+        equalizeItemSize();
+
     }
 
     function fetchMomentData() {
