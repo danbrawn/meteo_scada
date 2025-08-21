@@ -361,7 +361,7 @@ def login_required(f):
 def index():
     if 'username' not in session:  # Check if user is logged in
         return redirect(url_for('login'))  # Redirect to login if not authenticated
-    return render_template('html')  # Serve the main page
+    return render_template('index.html')  # Serve the main page
 
 
 @app.route('/plot', methods=['POST'])
