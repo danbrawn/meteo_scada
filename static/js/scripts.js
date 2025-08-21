@@ -136,7 +136,7 @@ $(document).ready(function () {
 
                 // Units logic (skip for specific dashboards or DateRef)
                 const unit =
-                    containerId === 'last-min-status-dashboard' || key === 'DateRef'
+                    key === 'DateRef'
                         ? ''
                         : columnUnits[columnOrder.indexOf(key)] || '';
 
@@ -224,16 +224,6 @@ $(document).ready(function () {
 
                 // Handle 'last_minute' updates
                 if (updateType === 'last_minute') {
-                    if (response.status_data && response.status_data.length > 0) {
-                        renderDashboard(
-                            response.status_data[0],
-                            'last-min-status-dashboard',
-                            response.columns_status,
-                            [],
-                            response.columns_status_bg
-                        );
-                    }
-
                     if (response.min_values_data && response.min_values_data.length > 0) {
                         renderDashboard(
                             response.min_values_data[0],
