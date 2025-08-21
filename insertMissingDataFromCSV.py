@@ -39,7 +39,7 @@ def read_config():
     global DB_TABLE_HOUR
     # Load configuration from config.ini
     with open('config.ini', 'r', encoding='utf-8') as config_file:
-        config = configparser.ConfigParser()
+        config = configparser.ConfigParser(interpolation=None)
         config.read_file(config_file)
 
     # Read database config
@@ -88,12 +88,9 @@ def get_last_record_datetime(engine, table_name):
 
 # Step 4: Connect to the FTP server and fetch the list of files
 def connect_ftp(ftp_config):
-    # ftp = FTP(ftp_config['ftp_host'], int(ftp_config['ftp_port']))
-    # ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
     ftp = FTP()
     ftp.connect(ftp_config['ftp_host'], int(ftp_config['ftp_port']))
-    # ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
-    ftp.login('admin', 'Bobovdol1234')
+    ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
     ftp.set_pasv(True)  # Force Passive Mode
     print("FTP connection successful")
     return ftp

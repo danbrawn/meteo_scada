@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Статистика</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="{{ url_for('static', filename='js/statistics.js') }}" defer></script>
+</head>
+<body>
+  <div class="banner">
+    <nav class="navbar">
+      <a href="/">Моментни данни</a>
+      <a href="/graphs">Графики</a>
+      <a href="/statistics">Статистика</a>
+      <a href="/report">Справка</a>
+    </nav>
+    <div class="logout-btn-container">
+      <a href="{{ url_for('logout') }}">
+        <button class="logout-btn">Logout</button>
+      </a>
+    </div>
+  </div>
+  <div class="container" id="statistics-container">
+    <h2>Днес</h2>
+    <div id="stats-today" class="dashboard-card"></div>
+    <h2>Този месец</h2>
+    <div id="stats-month" class="dashboard-card"></div>
+    <h2>Тази година</h2>
+    <div id="stats-year" class="dashboard-card"></div>
+  </div>
+</body>
+</html>
