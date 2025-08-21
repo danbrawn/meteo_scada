@@ -58,7 +58,7 @@ logger.addHandler(file_handler)
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     config.read_file(config_file)
 
 # MySQL Database Configuration
@@ -73,21 +73,33 @@ COLUMNS_LIST_STATUS = [col.strip() for col in config.get('SQL', 'columns_list_st
 
 # Columns
 DATE_COLUMN = 'DateRef'
-DATA_COLUMNS = [col.strip() for col in config.get('SQL', 'columns_list').split(',')]
-DATA_COLUMNS_UNITS = [col.strip() for col in config.get('SQL', 'columns_units_list').split(',')]
-POLLUTANT_COLUMNS = [col.strip() for col in config.get('NDE', 'pollutants_all').split(',')]
-nde_all = [val.strip() for val in config.get('NDE', 'nde_all').split(',')]
-pollutants_units = [unit.strip() for unit in config.get('NDE', 'pollutants_units_list').split(',')]
-simple_parameters = [unit.strip() for unit in config.get('NDE', 'simple_parameters').split(',')]
-simple_parameters_units = [unit.strip() for unit in config.get('NDE', 'simple_parameters_units').split(',')]
-simple_parameters_BG = [unit.strip() for unit in config.get('NDE', 'simple_parameters_BG').split(',')]
+RAW_DATA_COLUMNS = [col.strip() for col in config.get('SQL', 'columns_list').split(',')]
+CALCULATED_COLUMNS = ['RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR', 'EVAPOR_DAY']
+DATA_COLUMNS = RAW_DATA_COLUMNS + CALCULATED_COLUMNS
+RAW_UNITS = [col.strip() for col in config.get('SQL', 'columns_units_list').split(',')]
+CALCULATED_UNITS = ['mm', 'mm', 'mm', 'mm/day']
+DATA_COLUMNS_UNITS = RAW_UNITS + CALCULATED_UNITS
+# Pollutant-specific configuration removed; initialize empty lists for compatibility
+POLLUTANT_COLUMNS = []
+nde_all = []
+pollutants_units = []
+simple_parameters = []
+simple_parameters_units = []
+simple_parameters_BG = []
 
 
 # Names
-DATA_COLUMNS_NAMES = [col.strip() for col in config.get('SQL', 'columns_list').split(',')]
+DATA_COLUMNS_NAMES = DATA_COLUMNS
 # Excel template file path
 EXCEL_TEMPLATE_PATH = 'template.xlsx'
-DATA_COLUMNS_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
+RAW_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
+CALCULATED_BG = [
+    'Дъжд за ден - сума от данните от началото на деня',
+    'Дъжд за месец - сума от данните от началото на месеца',
+    'Дъжд за година - сума от данните от началото на годината',
+    'Изпарение - дневно - сума от данните от началото на деня'
+]
+DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
 DATA_COLUMNS_STATUS_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_STATUS_BG').split(',')]
 # Variable to store the path of the saved plot image
 plot_image_path = 'plot.png'
@@ -144,6 +156,17 @@ def generate_plot(df, x_col, y_col, title, labels, text_format, height=500, widt
     except Exception as e:
         print(f"Error generating plot for {y_col}: {e}")
         return None
+
+
+def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    if 'RAIN_MINUTE' in df.columns:
+        df['RAIN_DAY'] = df.groupby(df.index.date)['RAIN_MINUTE'].cumsum()
+        df['RAIN_MONTH'] = df.groupby(df.index.to_period('M'))['RAIN_MINUTE'].cumsum()
+        df['RAIN_YEAR'] = df.groupby(df.index.year)['RAIN_MINUTE'].cumsum()
+    if 'EVAPOR_MINUTE' in df.columns:
+        df['EVAPOR_DAY'] = df.groupby(df.index.date)['EVAPOR_MINUTE'].cumsum()
+    return df
 # Function to establish a connection to the MySQL database
 def get_db_connection():
     return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME, port=DB_PORT)
@@ -192,7 +215,7 @@ def update_dataframes():
 
                 # Query hourly data for the last 24 hours from mean_1hour_table
                 query_last_24_hours = f"""
-                    SELECT {DATE_COLUMN}, {', '.join(DATA_COLUMNS + COLUMNS_LIST_STATUS)} 
+                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
                     FROM {DB_TABLE}
                     WHERE {DATE_COLUMN} >= %s
                     ORDER BY {DATE_COLUMN} DESC
@@ -203,7 +226,7 @@ def update_dataframes():
                 # Fallback: Get the last available row if no data exists for the last 24 hours
                 if not last_24_hours_data:
                     query_last_24_hours_fallback = f"""
-                        SELECT {DATE_COLUMN}, {', '.join(DATA_COLUMNS + COLUMNS_LIST_STATUS)} 
+                        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
                         FROM {DB_TABLE}
                         ORDER BY {DATE_COLUMN} DESC LIMIT 1
                     """
@@ -213,14 +236,14 @@ def update_dataframes():
                 # Convert the last 24 hours' data to a DataFrame
                 df_last_24_hours_data = pd.DataFrame(
                     last_24_hours_data,
-                    columns=[DATE_COLUMN] + DATA_COLUMNS + COLUMNS_LIST_STATUS
+                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS
                 )
 
                 # Query the last minute's data for all columns from DB_TABLE_MIN
                 query_last_minute = f"""
-                    SELECT {DATE_COLUMN}, {', '.join(DATA_COLUMNS + COLUMNS_LIST_STATUS)} 
-                    FROM {DB_TABLE_MIN} 
-                    WHERE {DATE_COLUMN} >= %s 
+                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
+                    FROM {DB_TABLE_MIN}
+                    WHERE {DATE_COLUMN} >= %s
                     ORDER BY {DATE_COLUMN} DESC LIMIT 1
                 """
                 cursor.execute(query_last_minute, (last_minute_start.strftime('%Y-%m-%d %H:%M:%S'),))
@@ -229,7 +252,7 @@ def update_dataframes():
                 # Fallback: Get the last available row if no data exists for the last minute
                 if not last_minute_data:
                     query_last_minute_fallback = f"""
-                        SELECT {DATE_COLUMN}, {', '.join(DATA_COLUMNS + COLUMNS_LIST_STATUS)} 
+                        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS)}
                         FROM {DB_TABLE_MIN}
                         ORDER BY {DATE_COLUMN} DESC LIMIT 1
                     """
@@ -239,7 +262,7 @@ def update_dataframes():
                 # Convert the last minute's data to a DataFrame
                 df_last_min_data = pd.DataFrame(
                     last_minute_data,
-                    columns=[DATE_COLUMN] + DATA_COLUMNS + COLUMNS_LIST_STATUS
+                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS + COLUMNS_LIST_STATUS
                 )
 
                 # Convert DATE_COLUMN to datetime
@@ -247,10 +270,12 @@ def update_dataframes():
                     df_last_24_hours_data[DATE_COLUMN] = pd.to_datetime(df_last_24_hours_data[DATE_COLUMN])
                     # df_last_24_hours_data["DateRef"] = pd.to_datetime(df_last_24_hours_data["DateRef"]) + pd.Timedelta(hours=1)
                     df_last_24_hours_data.set_index(DATE_COLUMN, inplace=True)
+                    df_last_24_hours_data = add_calculated_columns(df_last_24_hours_data)
 
                 if not df_last_min_data.empty:
                     df_last_min_data[DATE_COLUMN] = pd.to_datetime(df_last_min_data[DATE_COLUMN])
                     df_last_min_data.set_index(DATE_COLUMN, inplace=True)
+                    df_last_min_data = add_calculated_columns(df_last_min_data)
             finally:
                 # Close the database connection
                 cursor.close()
@@ -260,7 +285,7 @@ def update_dataframes():
 
             # Handle last minute's data
             if not df_last_min_data.empty:
-                df_last_min_values = df_last_min_data[DATA_COLUMNS]
+                df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
                 df_last_min_values.reset_index(inplace=True)
                 df_last_min_values = df_last_min_values.round(1)  # Round to 1 decimal place
 
@@ -274,7 +299,8 @@ def update_dataframes():
                 else:
                     df_last_hour_values = df_last_24_hours_data.copy()  # Ensure a copy is made
 
-                df_last_hour_values.reset_index( inplace=True)  # Drop old index
+                df_last_hour_values = df_last_hour_values.reindex(columns=DATA_COLUMNS)
+                df_last_hour_values.reset_index(inplace=True)  # Drop old index
 
                 # Convert int/object columns to float
                 for col in df_last_hour_values.select_dtypes(include=['int', 'object']).columns:
@@ -355,7 +381,7 @@ def plot():
 
         # Fetch data from the database based on the date range
         cursor = db_connection.cursor()
-        query = f"SELECT {DATE_COLUMN}, {', '.join(DATA_COLUMNS)} FROM {DB_TABLE} " \
+        query = f"SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)} FROM {DB_TABLE} " \
                 f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s ORDER BY {DATE_COLUMN} ASC "
         cursor.execute(query, (start_date+' 00:00:00', end_date.strftime('%Y-%m-%d %H:%M:%S')))
         data = cursor.fetchall()
@@ -365,13 +391,14 @@ def plot():
         db_connection.close()
 
         # Create a DataFrame from the fetched data with only DATE_COLUMN and consumption columns
-        df = pd.DataFrame(data, columns=[DATE_COLUMN] + DATA_COLUMNS)
+        df = pd.DataFrame(data, columns=[DATE_COLUMN] + RAW_DATA_COLUMNS)
 
         # Convert DATE_COLUMN to datetime
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
 
         # Set DATE_COLUMN as index for proper time-based grouping
         df.set_index(DATE_COLUMN, inplace=True)
+        df = add_calculated_columns(df)
 
         # Group data by category (hourly, daily, or monthly)
         if category == "hourly":
@@ -380,14 +407,15 @@ def plot():
             df_grouped = df.groupby(pd.Grouper(freq='D')).mean()
         elif category == "monthly":
             df_grouped = df.groupby(pd.Grouper(freq='M')).mean()
-
+        df_grouped = add_calculated_columns(df_grouped)
         df_grouped.reset_index(inplace=True)
         df_grouped.rename(columns={'index': DATE_COLUMN}, inplace=True)
 
         my_df = df_grouped
+        columns_to_plot = [col for col in DATA_COLUMNS if col in my_df.columns]
 
         # Create Plotly Express figure for consumption
-        fig1 = px.line(my_df, x=DATE_COLUMN, y=DATA_COLUMNS, title="Всички данни")
+        fig1 = px.line(my_df, x=DATE_COLUMN, y=columns_to_plot, title="Всички данни")
 
         # Update axis titles
         fig1.update_xaxes(title_text="Дата")
@@ -408,16 +436,17 @@ def plot():
         )
 
         # Update legend names using Bulgarian column names
-        for trace, data_col, data_col_name in zip(fig1.data, DATA_COLUMNS, DATA_COLUMNS_BG):
+        bg_names_for_plot = [DATA_COLUMNS_BG[DATA_COLUMNS.index(c)] for c in columns_to_plot]
+        for trace, data_col, data_col_name in zip(fig1.data, columns_to_plot, bg_names_for_plot):
             trace.name = data_col_name  # Set the trace name
             trace.hovertemplate = None  # Remove the default hover template
 
         # Update trace mode to markers+lines
         fig1.update_traces(mode="markers+lines", hovertemplate=None)
 
-        # Wind Rose Plot for WIND_ANGLE and WIND_SPEED
-        wind_angle = my_df['WIND_ANGLE']
-        wind_speed = my_df['WIND_SPEED']
+        # Wind Rose Plot for wind direction and speed
+        wind_angle = my_df['WIND_DIR']
+        wind_speed = my_df['WIND_SPEED_1']
 
 
         # Example wind speed and direction data
@@ -448,41 +477,14 @@ def plot():
             # width=800,# Adjust the width
             autosize=True
         )
-        POLLUTANT_COLUMNS
-        # Pollutants Plot
-        # pollutants_columns = ['DateRef', 'SO2', 'NO', 'NO2', 'NOX']  # Adjust based on your data
-        pollutants_columns = ['DateRef']+POLLUTANT_COLUMNS  # Adjust based on your data
-        pollutants_df = my_df[pollutants_columns]
-
-        fig3 = px.line(pollutants_df, x=DATE_COLUMN, y=pollutants_columns, title="Замърсители")
-        fig3.update_xaxes(title_text="Дата")
-        #fig3.update_yaxes(title_text="Концентрации на замърсителите")
-        fig3.update_layout(hovermode="x unified", legend_title_text="Данни",
-            title={
-                'text': "Концентрации на замърсителите",
-                'x': 0.5,  # Center the title
-                'xanchor': 'center',  # Anchor the title at the center
-                'yanchor': 'top'  # Anchor the title at the top
-            },
-            autosize=True  # Ensure the figure resizes dynamically
-                           )
-        # Update trace names using DATA_COLUMNS_BG
-        for trace, column, name in zip(fig3.data, POLLUTANT_COLUMNS, DATA_COLUMNS_BG):
-            trace.name = name  # Set the trace name from the list
-            trace.hovertemplate = None  # Optional: Remove the default hover template
-
-        fig3.update_traces(mode="markers+lines", hovertemplate=None)
-
-        # Convert all plots to JSON format
-        plot_json1 = fig3.to_json()
+        # Convert plots to JSON format
+        plot_json1 = fig1.to_json()
         wind_rose_json = wind_rose_fig.to_json()
-        plot_json3 = fig1.to_json()
 
-        # Return all three plots in a JSON response
+        # Return plots in a JSON response
         return jsonify({
             'plot1': plot_json1,
-            'wind_rose': wind_rose_json,
-            'plot3': plot_json3
+            'wind_rose': wind_rose_json
         })
     except Exception as e:
         logging.error(f"An error occurred: {e}")
@@ -704,17 +706,8 @@ def moment_data():
                     # Generate plots and other data processing logic
                     plots = []
 
-                    # Process the first set of columns with nde values
-                    for col, bg_name, nde_value, unit in zip(DATA_COLUMNS, DATA_COLUMNS_BG, nde_all,
-                                                             DATA_COLUMNS_UNITS):
-                        title = f"Средночасови стойности за {bg_name} (ПДК: {nde_value} [{unit}]) през последните 24 часа"
-                        labels = {"DateRef": "Час", col: f"[{unit}]"}
-                        plot = generate_plot(df_last_hour_values, "DateRef", col, title, labels, "{:.1f}")
-                        if plot:
-                            plots.append(plot)
-
-                    # Process the second set of columns without nde values
-                    for col, bg_name, unit in zip(simple_parameters, simple_parameters_BG, simple_parameters_units):
+                    # Generate plots for each configured column
+                    for col, bg_name, unit in zip(DATA_COLUMNS, DATA_COLUMNS_BG, DATA_COLUMNS_UNITS):
                         title = f"Средночасови стойности за {bg_name} [{unit}] през последните 24 часа"
                         labels = {"DateRef": "Час", col: f"[{unit}]"}
                         plot = generate_plot(df_last_hour_values, "DateRef", col, title, labels, "{:.1f}")
@@ -760,9 +753,15 @@ def moment_data():
 # Initialize BackgroundScheduler
 scheduler = BackgroundScheduler()
 
+# Job to compute hourly averages
+def run_hourly_mean():
+    now = datetime.now()
+    mean_1h.mean_1h(now, now)
+
 # Function to start the scheduler
 def start_scheduler():
     scheduler.add_job(insert_missing_data, 'cron', hour='*', minute='*', second='1')
+    scheduler.add_job(run_hourly_mean, 'cron', minute='0', second='30')
     scheduler.start()
     print("Scheduler started in a separate thread...")
 
