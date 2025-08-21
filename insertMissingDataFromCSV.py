@@ -179,6 +179,14 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Zero out seconds in CSV data
     csv_data.loc[:, 'DateRef'] = csv_data['DateRef'].apply(zero_seconds)
 
+    # Calculate derived cumulative columns
+    if 'RAIN_MINUTE' in csv_data.columns:
+        csv_data['RAIN_DAY'] = csv_data.groupby(csv_data['DateRef'].dt.date)['RAIN_MINUTE'].cumsum()
+        csv_data['RAIN_MONTH'] = csv_data.groupby(csv_data['DateRef'].dt.to_period('M'))['RAIN_MINUTE'].cumsum()
+        csv_data['RAIN_YEAR'] = csv_data.groupby(csv_data['DateRef'].dt.year)['RAIN_MINUTE'].cumsum()
+    if 'EVAPOR_MINUTE' in csv_data.columns:
+        csv_data['EVAPOR_DAY'] = csv_data.groupby(csv_data['DateRef'].dt.date)['EVAPOR_MINUTE'].cumsum()
+
     # Ensure that all required columns are present in the DataFrame
     missing_cols = set(db_col_names) - set(csv_data.columns)
     if missing_cols:
