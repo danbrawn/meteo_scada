@@ -176,6 +176,11 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Zero out seconds in CSV data
     csv_data.loc[:, 'DateRef'] = csv_data['DateRef'].apply(zero_seconds)
 
+    # Convert measurement columns to numeric
+    for col in db_col_names:
+        if col != 'DateRef' and col in csv_data.columns:
+            csv_data[col] = pd.to_numeric(csv_data[col], errors='coerce')
+
     # Ensure that all required columns are present in the DataFrame
     missing_cols = set(db_col_names) - set(csv_data.columns)
     if missing_cols:
