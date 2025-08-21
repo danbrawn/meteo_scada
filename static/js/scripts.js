@@ -1,24 +1,4 @@
 $(document).ready(function () {
-    function equalizeItemSize() {
-        const items = $('.dashboard-item');
-        if (!items.length) return;
-
-        let minWidth = Infinity;
-        let minHeight = Infinity;
-
-        items.each(function () {
-            const w = $(this).outerWidth();
-            const h = $(this).outerHeight();
-            if (w < minWidth) minWidth = w;
-            if (h < minHeight) minHeight = h;
-        });
-
-        items.css({ width: minWidth, height: minHeight });
-        $('.dashboard-grid').css({
-            'grid-template-columns': `repeat(auto-fill, ${minWidth}px)`,
-            'grid-auto-rows': `${minHeight}px`
-        });
-    }
 
     function renderDashboard(data, columnOrder, columnUnits, columnNamesBG) {
         const container = $('#last-min-values-dashboard');
@@ -160,8 +140,6 @@ $(document).ready(function () {
             groupDiv.append(groupGrid);
             container.append(groupDiv);
         });
-
-        equalizeItemSize();
 
     }
 
