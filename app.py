@@ -75,12 +75,13 @@ COLUMNS_LIST_STATUS = [col.strip() for col in config.get('SQL', 'columns_list_st
 DATE_COLUMN = 'DateRef'
 DATA_COLUMNS = [col.strip() for col in config.get('SQL', 'columns_list').split(',')]
 DATA_COLUMNS_UNITS = [col.strip() for col in config.get('SQL', 'columns_units_list').split(',')]
-POLLUTANT_COLUMNS = [col.strip() for col in config.get('NDE', 'pollutants_all').split(',')]
-nde_all = [val.strip() for val in config.get('NDE', 'nde_all').split(',')]
-pollutants_units = [unit.strip() for unit in config.get('NDE', 'pollutants_units_list').split(',')]
-simple_parameters = [unit.strip() for unit in config.get('NDE', 'simple_parameters').split(',')]
-simple_parameters_units = [unit.strip() for unit in config.get('NDE', 'simple_parameters_units').split(',')]
-simple_parameters_BG = [unit.strip() for unit in config.get('NDE', 'simple_parameters_BG').split(',')]
+# Pollutant-specific configuration removed; initialize empty lists for compatibility
+POLLUTANT_COLUMNS = []
+nde_all = []
+pollutants_units = []
+simple_parameters = []
+simple_parameters_units = []
+simple_parameters_BG = []
 
 
 # Names
@@ -415,9 +416,9 @@ def plot():
         # Update trace mode to markers+lines
         fig1.update_traces(mode="markers+lines", hovertemplate=None)
 
-        # Wind Rose Plot for WIND_ANGLE and WIND_SPEED
-        wind_angle = my_df['WIND_ANGLE']
-        wind_speed = my_df['WIND_SPEED']
+        # Wind Rose Plot for wind direction and speed
+        wind_angle = my_df['WIND_DIR']
+        wind_speed = my_df['WIND_SPEED_1']
 
 
         # Example wind speed and direction data
@@ -448,41 +449,14 @@ def plot():
             # width=800,# Adjust the width
             autosize=True
         )
-        POLLUTANT_COLUMNS
-        # Pollutants Plot
-        # pollutants_columns = ['DateRef', 'SO2', 'NO', 'NO2', 'NOX']  # Adjust based on your data
-        pollutants_columns = ['DateRef']+POLLUTANT_COLUMNS  # Adjust based on your data
-        pollutants_df = my_df[pollutants_columns]
-
-        fig3 = px.line(pollutants_df, x=DATE_COLUMN, y=pollutants_columns, title="Замърсители")
-        fig3.update_xaxes(title_text="Дата")
-        #fig3.update_yaxes(title_text="Концентрации на замърсителите")
-        fig3.update_layout(hovermode="x unified", legend_title_text="Данни",
-            title={
-                'text': "Концентрации на замърсителите",
-                'x': 0.5,  # Center the title
-                'xanchor': 'center',  # Anchor the title at the center
-                'yanchor': 'top'  # Anchor the title at the top
-            },
-            autosize=True  # Ensure the figure resizes dynamically
-                           )
-        # Update trace names using DATA_COLUMNS_BG
-        for trace, column, name in zip(fig3.data, POLLUTANT_COLUMNS, DATA_COLUMNS_BG):
-            trace.name = name  # Set the trace name from the list
-            trace.hovertemplate = None  # Optional: Remove the default hover template
-
-        fig3.update_traces(mode="markers+lines", hovertemplate=None)
-
-        # Convert all plots to JSON format
-        plot_json1 = fig3.to_json()
+        # Convert plots to JSON format
+        plot_json1 = fig1.to_json()
         wind_rose_json = wind_rose_fig.to_json()
-        plot_json3 = fig1.to_json()
 
-        # Return all three plots in a JSON response
+        # Return plots in a JSON response
         return jsonify({
             'plot1': plot_json1,
-            'wind_rose': wind_rose_json,
-            'plot3': plot_json3
+            'wind_rose': wind_rose_json
         })
     except Exception as e:
         logging.error(f"An error occurred: {e}")
@@ -704,17 +678,8 @@ def moment_data():
                     # Generate plots and other data processing logic
                     plots = []
 
-                    # Process the first set of columns with nde values
-                    for col, bg_name, nde_value, unit in zip(DATA_COLUMNS, DATA_COLUMNS_BG, nde_all,
-                                                             DATA_COLUMNS_UNITS):
-                        title = f"Средночасови стойности за {bg_name} (ПДК: {nde_value} [{unit}]) през последните 24 часа"
-                        labels = {"DateRef": "Час", col: f"[{unit}]"}
-                        plot = generate_plot(df_last_hour_values, "DateRef", col, title, labels, "{:.1f}")
-                        if plot:
-                            plots.append(plot)
-
-                    # Process the second set of columns without nde values
-                    for col, bg_name, unit in zip(simple_parameters, simple_parameters_BG, simple_parameters_units):
+                    # Generate plots for each configured column
+                    for col, bg_name, unit in zip(DATA_COLUMNS, DATA_COLUMNS_BG, DATA_COLUMNS_UNITS):
                         title = f"Средночасови стойности за {bg_name} [{unit}] през последните 24 часа"
                         labels = {"DateRef": "Час", col: f"[{unit}]"}
                         plot = generate_plot(df_last_hour_values, "DateRef", col, title, labels, "{:.1f}")
@@ -760,9 +725,15 @@ def moment_data():
 # Initialize BackgroundScheduler
 scheduler = BackgroundScheduler()
 
+# Job to compute hourly averages
+def run_hourly_mean():
+    now = datetime.now()
+    mean_1h.mean_1h(now, now)
+
 # Function to start the scheduler
 def start_scheduler():
     scheduler.add_job(insert_missing_data, 'cron', hour='*', minute='*', second='1')
+    scheduler.add_job(run_hourly_mean, 'cron', minute='0', second='30')
     scheduler.start()
     print("Scheduler started in a separate thread...")
 
