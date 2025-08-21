@@ -194,6 +194,33 @@ body {
   margin-bottom: 20px;
   color: #333;
 }
+/* Statistics lists */
+.stats-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.stats-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.stats-item:last-child {
+  border-bottom: none;
+}
+
+.stats-label {
+  font-weight: bold;
+  color: #333;
+}
+
+.stats-value {
+  color: #555;
+}
 /* Date Picker Styling */
 .date-picker-container {
     display: flex;
