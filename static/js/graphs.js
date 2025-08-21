@@ -2,13 +2,25 @@ $(document).ready(function() {
   function renderGraphs() {
     const period = $('#period-select').val();
     $.getJSON(`/graph_data?period=${period}`, function(data) {
+      if (!data.DateRef || data.DateRef.length === 0) {
+        [
+          'graph-temp-hum',
+          'graph-pressure',
+          'graph-wind',
+          'graph-rain',
+          'graph-radiation'
+        ].forEach(id => {
+          document.getElementById(id).innerHTML = '<p>Няма данни за избрания период</p>';
+        });
+        return;
+      }
       const x = data.DateRef.map(d => new Date(d));
       const tickSettings = {
         '24h': { dtick: 3600000, tickformat: '%H:%M' },
         '30d': { dtick: 86400000, tickformat: '%d.%m' },
         '365d': { dtick: 'M1', tickformat: '%b' }
       };
-      const baseLayout = { xaxis: tickSettings[period] };
+      const baseLayout = { xaxis: { ...tickSettings[period], type: 'date' } };
       const config = { responsive: true };
 
       const plots = [
