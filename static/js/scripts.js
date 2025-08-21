@@ -1,4 +1,15 @@
 $(document).ready(function () {
+    function equalizeTiles() {
+        const tiles = document.querySelectorAll('.dashboard-item');
+        if (!tiles.length) return;
+        tiles.forEach(tile => tile.style.height = 'auto');
+        let minHeight = Infinity;
+        tiles.forEach(tile => {
+            const h = tile.offsetHeight;
+            if (h < minHeight) minHeight = h;
+        });
+        tiles.forEach(tile => tile.style.height = `${minHeight}px`);
+    }
 
     function renderDashboard(data, columnOrder, columnUnits, columnNamesBG) {
         const container = $('#last-min-values-dashboard');
@@ -89,7 +100,6 @@ $(document).ready(function () {
 
         const columnGroups = {
             'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER'],
-
             'Параметри на радиация': ['RADIATION'],
             'Изпарение': ['EVAPOR_MINUTE', 'EVAPOR_DAY'],
             'Параметри на вятъра': ['WIND_SPEED_1', 'WIND_SPEED_2', 'WIND_DIR', 'WIND_GUST'],
@@ -140,6 +150,8 @@ $(document).ready(function () {
             groupDiv.append(groupGrid);
             container.append(groupDiv);
         });
+
+        equalizeTiles();
 
     }
 

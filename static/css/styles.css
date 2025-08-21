@@ -108,10 +108,11 @@ body {
   box-sizing: border-box;
 
 /* Fix for dashboard grid */
+/* Dashboard grid with consistent spacing between tiles */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Flexible grid layout */
-  gap: 10px; /* Uniform spacing between items */
+  gap: 20px; /* More space between items */
   padding: 10px; /* Consistent padding inside the grid */
   box-sizing: border-box; /* Ensure padding is accounted for */
 }
@@ -119,7 +120,6 @@ body {
 /* Ensure all dashboard items fit within the grid */
 .dashboard-item {
   padding: 10px;
-  margin: 5px;
   border-radius: 5px;
   display: flex;
   flex-direction: column;
