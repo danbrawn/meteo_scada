@@ -618,19 +618,19 @@ def export2_to_excel():
         return jsonify({"error": "Failed to export data"}), 500
 
 
+def run_insert_missing_data():
+    try:
+        insertMissingDataFromCSV.main()
+    except Exception as e:
+        logger.error(f"Error updating data from CSV: {e}")
+
+
 @app.route('/insert_missing_data', methods=['POST'])
 def insert_missing_data():
     try:
-        #
-        # if datetime.now() > datetime(2025, 5, 10, 0, 0, 0):
-        #     os._exit(0)  # Forcefully stops the program
-        # Call the imported function directly
-        insertMissingDataFromCSV.main()
-        # return jsonify({'output': result}), 200
-
-
+        run_insert_missing_data()
+        return jsonify({'status': 'success'})
     except Exception as e:
-        # Handle any errors gracefully
         return jsonify({'error': str(e)}), 500
 
 
@@ -784,7 +784,7 @@ def run_hourly_mean():
 
 # Function to start the scheduler
 def start_scheduler():
-    scheduler.add_job(insert_missing_data, 'cron', hour='*', minute='*', second='1')
+    scheduler.add_job(run_insert_missing_data, 'cron', hour='*', minute='*', second='1')
     scheduler.add_job(run_hourly_mean, 'cron', minute='0', second='30')
     scheduler.start()
     print("Scheduler started in a separate thread...")
@@ -802,7 +802,7 @@ def shutdown_scheduler(sender, **extra):
 got_request_exception.connect(shutdown_scheduler, app)
 
 if init == 0:
-    insertMissingDataFromCSV.main()
+    run_insert_missing_data()
 
 if __name__ == '__main__':
     #insertMissingDataFromCSV.main()
