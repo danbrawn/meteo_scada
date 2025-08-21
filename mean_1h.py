@@ -32,28 +32,24 @@ logger = setup_logger(log_filename)
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     config.read_file(config_file)
 
 # Get the column names as a comma-separated string from the INI file
 columns_string = config.get('SQL', 'columns_list')
-columns_string_status = config.get('SQL', 'columns_list_status')
 
 # Split the comma-separated string into a list of column names
 columns_list = [column.strip() for column in columns_string.split(',')]
-columns_list_status = [column.strip() for column in columns_string_status.split(',')]
 
-# Create the DataFrame with the new column "Note" plus the columns from the config file
-output_data = pd.DataFrame(columns=columns_list)
-# raw_data = pd.DataFrame(columns=columns_list + ['INE', 'PPI', 'NPS', 'GAS', 'PAS', 'IZS'] + columns_list_status)
-# temp_data = pd.DataFrame(columns=columns_list + ['INE', 'PPI', 'NPS', 'GAS', 'PAS', 'IZS'] + columns_list_status)
-raw_data = pd.DataFrame(columns=['DateRef']+columns_list + columns_list_status)
-temp_data = pd.DataFrame(columns=['DateRef']+columns_list + columns_list_status)
+# Create the DataFrames using only the measurement columns
+output_data = pd.DataFrame(columns=['DateRef'] + columns_list)
+raw_data = pd.DataFrame(columns=['DateRef'] + columns_list)
+temp_data = pd.DataFrame(columns=['DateRef'] + columns_list)
 
 engine = None
 output_columns = len(columns_list)
-#data_columns_raw = len(columns_list) + 6 + len(columns_list_status)  #1 (dateCols) + data_cols + notes_cols(ine,ppi,nps...)
-data_columns_raw = len(columns_list) + len(columns_list_status)  #1 (dateCols) + data_cols + notes_cols(ine,ppi,nps...)
+# Total number of data columns (excluding DateRef)
+data_columns_raw = len(columns_list)
 
 now = datetime.now()
 minutesFromHourStarted = now.minute
@@ -99,10 +95,8 @@ def openSQLconnection(start_date):
         end_time = start_time + timedelta(minutes=59, seconds=59)
         raw_data = pd.read_sql(query, engine, params=(start_time, end_time))
         if raw_data.empty:
-            output_data.at[0,'DateRef'] = start_time
-            output_data.iloc[0, 1:-1] = 'No Data'
-            output_data.replace('No Data', np.nan, inplace=True)
-            output_data.iloc[0, -1] = 'КГР'
+            output_data.at[0, 'DateRef'] = start_time
+            output_data.loc[0, columns_list] = np.nan
             return 'No_data_for_that_hour'
         else:
             raw_data['DateRef'] = pd.to_datetime(raw_data['DateRef'])  # Convert DateRef column to datetime type
