@@ -273,6 +273,7 @@ def graph_data():
         if df.empty:
             return jsonify({})
 
+        df[RAW_DATA_COLUMNS] = df[RAW_DATA_COLUMNS].apply(pd.to_numeric, errors='coerce')
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
 
