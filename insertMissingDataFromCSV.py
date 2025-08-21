@@ -54,6 +54,8 @@ def read_config():
 
     DB_TABLE_HOUR = config.get('SQL', 'mean_1hour_table')
     # Read FTP config
+    csv_cols = [col.strip() for col in config.get('CSV', 'csv_col_names').split(',')]
+    db_cols = [col.strip() for col in config.get('CSV', 'db_col_names').split(',')]
     ftp_config = {
         'ftp_host': config.get('CSV', 'ftp_host'),
         'ftp_port': config.get('CSV', 'ftp_port'),
@@ -62,10 +64,9 @@ def read_config():
         'remote_csv_path': config.get('CSV', 'remote_csv_path'),
         'local_csv_folder': config.get('CSV', 'local_csv_folder'),  # Retrieve local folder path
         'csv_template_name': config.get('CSV', 'csv_template_name').strip(),
-        'csv_col_names': config.get('CSV', 'csv_col_names').split(','),  # Comma-separated columns for CSV
-        'db_col_names': config.get('CSV', 'db_col_names').split(','),  # Comma-separated columns for DB
-        'column_mapping': dict(
-            zip(config.get('CSV', 'csv_col_names').split(','), config.get('CSV', 'db_col_names').split(',')))
+        'csv_col_names': csv_cols,  # Comma-separated columns for CSV
+        'db_col_names': db_cols,  # Comma-separated columns for DB
+        'column_mapping': dict(zip(csv_cols, db_cols))
     }
 
     return db_config, ftp_config
