@@ -38,6 +38,7 @@ $(document).ready(function() {
         {x: x, y: data.RADIATION, name: 'RADIATION', type: 'scatter'}
       ], {...baseLayout, title: 'Радиация'}, config);
     });
+
   }
   $('#period-select').change(renderGraphs);
   renderGraphs();
