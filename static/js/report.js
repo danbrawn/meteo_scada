@@ -81,6 +81,5 @@ $(document).ready(function() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   });
-
   loadData(currentYear, new Date().getMonth() + 1);
 });
