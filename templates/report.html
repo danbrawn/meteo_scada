@@ -22,11 +22,21 @@
       </a>
     </div>
   </div>
-  <div class="container" id="report-container">
-    <table id="report-table" class="dashboard-card">
-      <thead></thead>
-      <tbody></tbody>
-    </table>
+  <div class="container">
+    <div class="report-controls">
+      <label for="month-select">Месец:</label>
+      <select id="month-select"></select>
+      <label for="year-select">Година:</label>
+      <select id="year-select"></select>
+      <button id="load-report">Покажи</button>
+      <button id="export-csv">Експорт CSV</button>
+    </div>
+    <div id="report-container">
+      <table id="report-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 </body>
 </html>
