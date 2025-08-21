@@ -278,9 +278,7 @@ def graph_data():
         df.set_index(DATE_COLUMN, inplace=True)
 
         if period == '24h':
-            df_others = df.drop(columns=['RADIATION']).resample('10min').mean()
-            rad = df['RADIATION'].resample('h').mean()
-            df_res = df_others.join(rad)
+            df_res = df.resample('h').mean()
         else:
             df_others = df.drop(columns=['RADIATION']).resample('d').mean()
             rad = df['RADIATION'].resample('d').sum() / 1000
