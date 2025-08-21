@@ -91,8 +91,8 @@ body {
 
 .dashboard-group h3 {
   margin: 0 0 10px 0;
-  background-color: #4da877;
-  color: white;
+  background-color: #e0e0e0;
+  color: #333;
   padding: 10px;
   width: 100%;
   box-sizing: border-box;
@@ -103,10 +103,16 @@ body {
 /* Dashboard grid with consistent spacing between tiles */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Flexible grid layout */
+  grid-template-columns: repeat(4, 1fr); /* Four equal columns */
   gap: 20px; /* More space between items */
   padding: 10px; /* Consistent padding inside the grid */
   box-sizing: border-box; /* Ensure padding is accounted for */
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr); /* Responsive fallback for smaller screens */
+  }
 }
 
 /* Ensure all dashboard items fit within the grid */
