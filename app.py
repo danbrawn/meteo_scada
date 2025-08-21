@@ -78,6 +78,7 @@ CALCULATED_COLUMNS = [col.strip() for col in config.get('SQL', 'calc_columns').s
 DATA_COLUMNS = RAW_DATA_COLUMNS + CALCULATED_COLUMNS
 RAW_UNITS = [col.strip() for col in config.get('SQL', 'columns_units_list').split(',')]
 CALCULATED_UNITS = [col.strip() for col in config.get('SQL', 'calc_units_list').split(',')]
+
 DATA_COLUMNS_UNITS = RAW_UNITS + CALCULATED_UNITS
 # Pollutant-specific configuration removed; initialize empty lists for compatibility
 POLLUTANT_COLUMNS = []
@@ -94,6 +95,7 @@ DATA_COLUMNS_NAMES = DATA_COLUMNS
 EXCEL_TEMPLATE_PATH = 'template.xlsx'
 RAW_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
 CALCULATED_BG = [col.strip() for col in config.get('SQL', 'calc_columns_bg').split(',')]
+
 DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
 DATA_COLUMNS_STATUS_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_STATUS_BG').split(',')]
 # Variable to store the path of the saved plot image
@@ -795,7 +797,7 @@ if init == 0:
 
 if __name__ == '__main__':
     #insertMissingDataFromCSV.main()
-    #app.run(host='0.0.0.0', port=5010, debug=False)
+    app.run(host='0.0.0.0', port=5010, debug=False)
     # uncomment this to start in non production
-    serve(app, host='0.0.0.0', port=50023)
+    #serve(app, host='0.0.0.0', port=50023)
 
