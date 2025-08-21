@@ -1,0 +1,12 @@
+Flask
+Flask-Bcrypt
+pytz
+APScheduler
+waitress
+pandas
+plotly
+pymysql
+openpyxl
+SQLAlchemy
+numpy
+mysql-connector-python

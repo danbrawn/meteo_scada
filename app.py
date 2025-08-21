@@ -1,30 +1,41 @@
-    import subprocess
-    import sys
-    from datetime import datetime, timedelta
+import subprocess
+import sys
+from datetime import datetime, timedelta
 
-    import pytz
-    from apscheduler.schedulers.background import BackgroundScheduler
-    from waitress import serve
+import pytz
+from apscheduler.schedulers.background import BackgroundScheduler
+from waitress import serve
 
-    import mean_1h
+import mean_1h
 
-    from flask_bcrypt import Bcrypt
-    import logging
-    import os
-    import pandas as pd
-    from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, flash, make_response,got_request_exception
-    import plotly.express as px
-    import plotly.graph_objects as go
-    import pymysql
-    import configparser
-    import openpyxl
-    from functools import wraps
+from flask_bcrypt import Bcrypt
+import logging
+import os
+import pandas as pd
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    send_file,
+    session,
+    redirect,
+    url_for,
+    flash,
+    make_response,
+    got_request_exception,
+)
+import plotly.express as px
+import plotly.graph_objects as go
+import pymysql
+import configparser
+import openpyxl
+from functools import wraps
 
-    import insertMissingDataFromCSV
-    from logging import FileHandler,WARNING
-    import threading
-    import time
-
+import insertMissingDataFromCSV
+from logging import FileHandler, WARNING
+import threading
+import time
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # Create a logger
 logger = logging.getLogger()
@@ -43,6 +54,7 @@ logger.addHandler(file_handler)
 
 file_handler = FileHandler('errorlog.txt')
 file_handler.setLevel(WARNING)
+logger.addHandler(file_handler)
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
