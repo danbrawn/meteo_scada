@@ -165,6 +165,12 @@ body {
     display: block;
 }
 
+/* Ensure Plotly charts stay within their cards */
+.dashboard-card .plot-container {
+    width: 95% !important;
+    margin: 0 auto;
+}
+
 /* Container for the label */
 .choose-period-text {
   display: flex;
