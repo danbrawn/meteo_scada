@@ -125,7 +125,7 @@ app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder=template_dir)
 bcrypt = Bcrypt(app)
 app.secret_key = 'джасфжфдгсдфг'  # Replace with a secure random key
 app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies (recommended for production)
+app.config['SESSION_COOKIE_SECURE'] = False  # Allow cookies over HTTP; set to True when using HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent client-side script access to the cookie
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Prevent cross-site requests
 
