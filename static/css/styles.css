@@ -168,6 +168,20 @@ body {
     display: block;
 }
 
+/* Ensure Plotly charts stay within their cards */
+.dashboard-card .plot-container {
+    width: 95% !important;
+    margin: 0 auto;
+}
+
+/* Prevent Plotly's internal SVG from overflowing its card */
+.dashboard-card .main-svg {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
+}
+
 /* Container for the label */
 .choose-period-text {
   display: flex;
@@ -189,7 +203,6 @@ body {
   max-width: 600px;
   font-size: 16px;
 }
-
 .controls p {
   font-weight: bold;
   margin-bottom: 20px;
