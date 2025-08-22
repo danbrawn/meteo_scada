@@ -154,30 +154,36 @@ body {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   margin: 10px auto;
   padding: 20px;
-  width: 95%;
+  width: 100%;
 }
 
 .dashboard-card.full-width {
-    width: 97%;
+    width: 100%;
     min-height: 400px;
     height: 400px;
     margin: 20px auto;
     display: block;
 }
 
-/* Ensure Plotly charts stay within their cards */
+/* Ensure Plotly charts stay within their cards without clipping */
 .dashboard-card .plot-container {
-    width: 95% !important;
+    width: 100% !important;
     margin: 0 auto;
 }
 
-/* Prevent Plotly's internal SVG from overflowing its card */
+/* Allow Plotly's internal SVG to size naturally */
 .dashboard-card .main-svg {
-    width: 100% !important;
-    height: 100% !important;
     max-width: 100%;
-    max-height: 100%;
+    height: auto !important;
 }
+
+/* Statistics section retains width constraints */
+#statistics-container .dashboard-card,
+#statistics-container .controls {
+    width: 95%;
+    max-width: 650px;
+}
+
 /* Container for the label */
 .choose-period-text {
   display: flex;
@@ -195,10 +201,8 @@ body {
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   margin: 20px auto;
-  width: 85%;
   font-size: 16px;
 }
-
 .controls p {
   font-weight: bold;
   margin-bottom: 20px;
