@@ -169,12 +169,16 @@ body {
 .dashboard-card .plot-container {
     width: 100% !important;
     margin: 0 auto;
+    display: flex;
+    justify-content: center;
 }
 
 /* Allow Plotly's internal SVG to size naturally */
 .dashboard-card .main-svg {
-    max-width: 100%;
+    max-width: 90%;
+    width: 90% !important;
     height: auto !important;
+    margin: 0 auto;
 }
 
 /* Statistics section retains width constraints */
