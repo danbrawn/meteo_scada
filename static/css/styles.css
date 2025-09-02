@@ -5,7 +5,7 @@ body {
   padding: 0;
   background-color: #f5f5f5;
   /* Background image file (static/img/lake.jpg) is ignored in git */
-  background-image: url('../img/lake.jpg');
+  background-image: url('../img/lake.png');
   background-size: cover;
   background-attachment: fixed;
   background-repeat: no-repeat;
