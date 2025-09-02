@@ -26,7 +26,8 @@ $(document).ready(function() {
         xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true },
         margin: { l: 80, r: 80, t: 40, b: 80 },
         legend: { orientation: 'h', y: -0.3 },
-        hoverlabel: { namelength: -1 }
+        hoverlabel: { namelength: -1 },
+        showlegend: true
       };
       const config = { responsive: true, locale: 'bg' };
 
@@ -37,7 +38,7 @@ $(document).ready(function() {
             {
               x,
               y: data.T_AIR,
-              name: 'Температура',
+              name: 'Температура [°C]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
@@ -46,7 +47,7 @@ $(document).ready(function() {
             {
               x,
               y: data.REL_HUM,
-              name: 'Относителна влажност',
+              name: 'Относителна влажност [%]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
@@ -72,7 +73,7 @@ $(document).ready(function() {
             {
               x,
               y: data.P_ABS,
-              name: 'Налягане - абсолютно',
+              name: 'Налягане - абсолютно [hPa]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
@@ -81,7 +82,7 @@ $(document).ready(function() {
             {
               x,
               y: data.P_REL,
-              name: 'Налягане - относително',
+              name: 'Налягане - относително [hPa]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
@@ -107,7 +108,7 @@ $(document).ready(function() {
             {
               x,
               y: data.WIND_SPEED_1,
-              name: 'Скорост на вятъра 1',
+              name: 'Скорост на вятъра 1 [km/h]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
@@ -116,7 +117,7 @@ $(document).ready(function() {
             {
               x,
               y: data.WIND_SPEED_2,
-              name: 'Скорост на вятъра 2',
+              name: 'Скорост на вятъра 2 [m/s]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
@@ -142,7 +143,7 @@ $(document).ready(function() {
             {
               x,
               y: data.RAIN_MINUTE,
-              name: 'Дъжд',
+              name: 'Дъжд [mm]',
               type: 'bar',
               marker: { color: 'blue' },
               hovertemplate: '%{fullData.name}: %{y:.1f} mm<extra></extra>'
@@ -159,7 +160,7 @@ $(document).ready(function() {
             {
               x,
               y: data.EVAPOR_MINUTE,
-              name: 'Изпарение',
+              name: 'Изпарение [mm]',
               type: 'bar',
               marker: { color: 'green' },
               hovertemplate: '%{fullData.name}: %{y:.1f} mm<extra></extra>'
@@ -176,7 +177,7 @@ $(document).ready(function() {
             {
               x,
               y: data.RADIATION,
-              name: 'Слънчева радиация',
+              name: 'Слънчева радиация [W/m²]',
               type: 'bar',
               marker: { color: 'orange' },
               hovertemplate: '%{fullData.name}: %{y:.1f} W/m²<extra></extra>'
