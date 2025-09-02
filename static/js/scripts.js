@@ -100,7 +100,7 @@ $(document).ready(function () {
 
         const columnGroups = {
             'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER'],
-            'Параметри на радиация': ['RADIATION'],
+            'Слънчева радиация': ['RADIATION'],
             'Изпарение': ['EVAPOR_MINUTE', 'EVAPOR_DAY'],
             'Параметри на вятъра': ['WIND_SPEED_1', 'WIND_SPEED_2', 'WIND_DIR', 'WIND_GUST'],
             'Атмосферно налягане': ['P_ABS', 'P_REL'],
@@ -137,10 +137,11 @@ $(document).ready(function () {
                     }
                 }
 
+                const formatted = !isNaN(value) ? Number(value).toLocaleString('bg-BG', { maximumFractionDigits: 1 }) : value;
                 const dashboardItem = `
                     <div class="dashboard-item" style="${style}">
                         <div class="variable-name">${displayName} ${unit ? `[${unit}]` : ''}</div>
-                        <div class="variable-value">${value}</div>
+                        <div class="variable-value">${formatted}</div>
                         ${maxThreshold ? `<div class="variable-threshold">ПДК: ${maxThreshold}</div>` : ''}
                     </div>
                 `;
