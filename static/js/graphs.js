@@ -41,7 +41,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             },
             {
               x,
@@ -50,7 +50,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -77,7 +77,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             },
             {
               x,
@@ -86,7 +86,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -113,7 +113,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             },
             {
               x,
@@ -122,7 +122,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -148,7 +148,7 @@ $(document).ready(function() {
               name: 'Дъжд',
               type: 'bar',
               marker: { color: 'blue' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -165,7 +165,7 @@ $(document).ready(function() {
               name: 'Изпарение',
               type: 'bar',
               marker: { color: 'green' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -182,7 +182,7 @@ $(document).ready(function() {
               name: 'Слънчева радиация',
               type: 'bar',
               marker: { color: 'orange' },
-              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {

@@ -86,7 +86,7 @@ body {
 
 /* Group container for last minute data */
 .dashboard-group {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 
@@ -105,7 +105,7 @@ body {
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr); /* Four equal columns */
-  gap: 20px; /* More space between items */
+  gap: 10px; /* Reduced space between items */
   padding: 10px; /* Consistent padding inside the grid */
   box-sizing: border-box; /* Ensure padding is accounted for */
 }
@@ -118,7 +118,7 @@ body {
 
 /* Ensure all dashboard items fit within the grid */
 .dashboard-item {
-  padding: 15px;
+  padding: 10px;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -147,7 +147,7 @@ body {
 }
 
 .dashboard-item .variable-value {
-  font-size: 1.2em;
+  font-size: 1.1em;
   color: #333;
 }
 .dashboard-card {
@@ -156,7 +156,7 @@ body {
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   margin: 10px auto;
-  padding: 20px;
+  padding: 15px;
   width: 100%;
 }
 
@@ -252,8 +252,8 @@ body {
 .stats-item {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: 4px;
+  padding: 2px 4px;
   border-bottom: 1px solid #e0e0e0;
   width: 50%;
 }
@@ -550,8 +550,8 @@ body {
 
 #report-table {
   border-collapse: collapse;
-  width: 100%;
-  min-width: 900px;
+  width: auto;
+  min-width: 0;
   font-size: 12px;
   background: #fff;
 }
@@ -559,8 +559,8 @@ body {
 #report-table th,
 #report-table td {
   border: 1px solid #ccc;
-  padding: 4px;
-  min-width: 60px;
+  padding: 2px;
+  min-width: 40px;
   text-align: center;
 }
 
