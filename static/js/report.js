@@ -74,7 +74,7 @@ $(document).ready(function() {
         csv.push(row.join(';'));
     });
     const csvContent = csv.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `Meteo_Dushanci_${month}_${year}.csv`;

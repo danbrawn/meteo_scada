@@ -41,7 +41,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             },
             {
               x,
@@ -50,7 +50,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -75,21 +75,32 @@ $(document).ready(function() {
               y: data.P_ABS,
               name: 'Налягане - абсолютно',
               type: 'scatter',
+              yaxis: 'y1',
               line: { shape: 'spline' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             },
             {
               x,
               y: data.P_REL,
               name: 'Налягане - относително',
               type: 'scatter',
+              yaxis: 'y2',
               line: { shape: 'spline' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
             title: 'Налягане',
-            yaxis: { title: 'Налягане (hPa)', tickformat: '.1f', hoverformat: '.1f', automargin: true }
+            yaxis: { title: 'Абсолютно налягане (hPa)', tickformat: '.1f', hoverformat: '.1f', automargin: true },
+            yaxis2: {
+              title: 'Относително налягане (hPa)',
+              overlaying: 'y',
+              side: 'right',
+              tickformat: '.1f',
+              hoverformat: '.1f',
+              showline: true,
+              automargin: true
+            }
           }
         },
         {
@@ -102,7 +113,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             },
             {
               x,
@@ -111,7 +122,7 @@ $(document).ready(function() {
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -137,7 +148,7 @@ $(document).ready(function() {
               name: 'Дъжд',
               type: 'bar',
               marker: { color: 'blue' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -154,7 +165,7 @@ $(document).ready(function() {
               name: 'Изпарение',
               type: 'bar',
               marker: { color: 'green' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {
@@ -171,7 +182,7 @@ $(document).ready(function() {
               name: 'Слънчева радиация',
               type: 'bar',
               marker: { color: 'orange' },
-              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+              hovertemplate: '%{name}: %{y:.1f}<extra></extra>'
             }
           ],
           layout: {

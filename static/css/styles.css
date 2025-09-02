@@ -205,6 +205,9 @@ body {
     font-size: clamp(12px, 1vw, 16px);
 }
 
+#statistics-container .dashboard-card {
+    padding: 10px;
+}
 #statistics-container .dashboard-card h3 {
     margin-top: 0;
     margin-bottom: 10px;
@@ -249,8 +252,8 @@ body {
 .stats-item {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
-  padding: 10px 16px;
+  gap: 8px;
+  padding: 4px 8px;
   border-bottom: 1px solid #e0e0e0;
   width: 50%;
 }
