@@ -1,8 +1,10 @@
 $(document).ready(function() {
   const params = [
     { key: 'T_AIR', name: 'Температура °C' },
+    { key: 'T_WATER', name: 'Температура на водата °C' },
     { key: 'REL_HUM', name: 'Относителна влажност %' },
     { key: 'P_REL', name: 'Относително налягане hPa' },
+    { key: 'P_ABS', name: 'Абсолютно налягане hPa' },
     { key: 'WIND_SPEED_1', name: 'Скорост на вятъра km/h' },
     { key: 'WIND_SPEED_2', name: 'Скорост на вятъра m/s' },
     { key: 'WIND_DIR', name: 'Посока на вятъра (DEG)' },
@@ -23,7 +25,7 @@ $(document).ready(function() {
       const values = data[p.key] || [];
       const cells = days.map(d => {
         const v = values[d-1];
-        return `<td>${v !== undefined && v !== null ? Number(v).toFixed(1) : ''}</td>`;
+        return `<td>${v !== undefined && v !== null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''}</td>`;
       }).join('');
       return `<tr><td class="sticky-col">${p.name}</td>${cells}</tr>`;
     }).join('');
@@ -61,15 +63,15 @@ $(document).ready(function() {
   $('#export-csv').on('click', function() {
     const year = yearSelect.val();
     const month = String(monthSelect.val()).padStart(2, '0');
-    let csv = ['Параметър,' + days.join(',')];
+    let csv = ['Параметър;' + days.join(';')];
     params.forEach(p => {
       const values = currentData[p.key] || [];
       const row = [p.name];
       for (let i = 0; i < days.length; i++) {
         const v = values[i];
-        row.push(v !== undefined && v !== null ? Number(v).toFixed(1) : '');
+        row.push(v !== undefined && v !== null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '');
       }
-      csv.push(row.join(','));
+        csv.push(row.join(';'));
     });
     const csvContent = csv.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

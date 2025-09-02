@@ -323,6 +323,18 @@ def _min_max_with_time(df: pd.DataFrame, column: str):
     }
 
 
+def format_number(val: float) -> str:
+    sign = '-' if val < 0 else ''
+    val = abs(val)
+    whole, frac = f"{val:.1f}".split('.')
+    groups = []
+    while whole:
+        groups.append(whole[-3:])
+        whole = whole[:-3]
+    whole_with_space = ' '.join(reversed(groups))
+    return f"{sign}{whole_with_space},{frac}"
+
+
 def _build_stats(period: str):
     now = datetime.now()
     if period == 'today':
@@ -342,7 +354,7 @@ def _build_stats(period: str):
         db_connection = get_db_connection()
         cursor = db_connection.cursor()
         query = (
-            f"SELECT {DATE_COLUMN}, T_AIR, REL_HUM, P_REL, WIND_GUST, WIND_DIR, RAIN_MINUTE, EVAPOR_MINUTE, RADIATION "
+            f"SELECT {DATE_COLUMN}, T_AIR, T_WATER, REL_HUM, P_REL, P_ABS, WIND_GUST, WIND_DIR, RAIN_MINUTE, EVAPOR_MINUTE, RADIATION "
             f"FROM {DB_TABLE_MIN}"
         )
         params = None
@@ -361,8 +373,10 @@ def _build_stats(period: str):
             columns=[
                 DATE_COLUMN,
                 "T_AIR",
+                "T_WATER",
                 "REL_HUM",
                 "P_REL",
+                "P_ABS",
                 "WIND_GUST",
                 "WIND_DIR",
                 "RAIN_MINUTE",
@@ -377,7 +391,7 @@ def _build_stats(period: str):
     if df.empty:
         return []
 
-    for col in ['T_AIR', 'REL_HUM', 'P_REL', 'WIND_GUST', 'WIND_DIR', 'RAIN_MINUTE', 'EVAPOR_MINUTE', 'RADIATION']:
+    for col in ['T_AIR', 'T_WATER', 'REL_HUM', 'P_REL', 'P_ABS', 'WIND_GUST', 'WIND_DIR', 'RAIN_MINUTE', 'EVAPOR_MINUTE', 'RADIATION']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
@@ -390,8 +404,18 @@ def _build_stats(period: str):
         result.append({
             "label": "Температура",
             "value": [
-                f"мин {temp['min']:.1f}°C ({temp['min_time']})",
-                f"макс {temp['max']:.1f}°C ({temp['max_time']})",
+                f"мин {format_number(temp['min'])}°C ({temp['min_time']})",
+                f"макс {format_number(temp['max'])}°C ({temp['max_time']})",
+            ],
+        })
+
+    water = _min_max_with_time(df, 'T_WATER')
+    if water:
+        result.append({
+            "label": "Температура на водата",
+            "value": [
+                f"мин {format_number(water['min'])}°C ({water['min_time']})",
+                f"макс {format_number(water['max'])}°C ({water['max_time']})",
             ],
         })
 
@@ -400,18 +424,28 @@ def _build_stats(period: str):
         result.append({
             "label": "Относителна влажност",
             "value": [
-                f"мин {hum['min']:.1f}% ({hum['min_time']})",
-                f"макс {hum['max']:.1f}% ({hum['max_time']})",
+                f"мин {format_number(hum['min'])}% ({hum['min_time']})",
+                f"макс {format_number(hum['max'])}% ({hum['max_time']})",
             ],
         })
 
-    press = _min_max_with_time(df, 'P_REL')
-    if press:
+    press_rel = _min_max_with_time(df, 'P_REL')
+    if press_rel:
         result.append({
-            "label": "Атмосферно налягане",
+            "label": "Относително налягане",
             "value": [
-                f"мин {press['min']:.1f} hPa ({press['min_time']})",
-                f"макс {press['max']:.1f} hPa ({press['max_time']})",
+                f"мин {format_number(press_rel['min'])} hPa ({press_rel['min_time']})",
+                f"макс {format_number(press_rel['max'])} hPa ({press_rel['max_time']})",
+            ],
+        })
+
+    press_abs = _min_max_with_time(df, 'P_ABS')
+    if press_abs:
+        result.append({
+            "label": "Абсолютно налягане",
+            "value": [
+                f"мин {format_number(press_abs['min'])} hPa ({press_abs['min_time']})",
+                f"макс {format_number(press_abs['max'])} hPa ({press_abs['max_time']})",
             ],
         })
 
@@ -428,28 +462,24 @@ def _build_stats(period: str):
         dir_text = f", посока {direction}" if pd.notnull(direction) else ''
         result.append({
             "label": "Порив на вятъра",
-            "value": f"макс {gust_value:.1f} km/h{dir_text} ({_format_dt(gust_time)})",
+            "value": f"макс {format_number(gust_value)} km/h{dir_text} ({_format_dt(gust_time)})",
         })
 
     rain_total = df['RAIN_MINUTE'].dropna().sum()
-    if rain_total and period == 'today':
+    if rain_total:
+        label = "Сума дъжд за деня" if period == 'today' else "Сума дъжд"
         result.append({
-            "label": "Сума дъжд за деня",
-            "value": f"{rain_total:.1f} mm",
-        })
-    elif rain_total:
-        result.append({
-            "label": "Сума дъжд",
-            "value": f"{rain_total:.1f} mm",
+            "label": label,
+            "value": f"{format_number(rain_total)} mm",
         })
 
-    if period == 'today':
-        evap_total = df['EVAPOR_MINUTE'].dropna().sum()
-        if evap_total:
-            result.append({
-                "label": "Изпарение за деня",
-                "value": f"{evap_total:.1f} mm",
-            })
+    evap_total = df['EVAPOR_MINUTE'].dropna().sum()
+    if evap_total:
+        label = "Изпарение за деня" if period == 'today' else "Изпарение"
+        result.append({
+            "label": label,
+            "value": f"{format_number(evap_total)} mm",
+        })
 
     if period != 'today' and not df['RAIN_MINUTE'].dropna().empty:
         daily_rain = df['RAIN_MINUTE'].resample('D').sum()
@@ -457,7 +487,7 @@ def _build_stats(period: str):
         max_day_time = _format_dt(daily_rain.idxmax())
         result.append({
             "label": "Макс за ден",
-            "value": f"{max_day:.1f} mm ({max_day_time})",
+            "value": f"{format_number(max_day)} mm ({max_day_time})",
         })
         intensity_series = df['RAIN_MINUTE'].dropna()
         if not intensity_series.empty:
@@ -465,7 +495,7 @@ def _build_stats(period: str):
             intensity_time = intensity_series.idxmax()
             result.append({
                 "label": "Макс интензитет",
-                "value": f"{intensity_value:.1f} mm/min ({_format_dt(intensity_time)})",
+                "value": f"{format_number(intensity_value)} mm/min ({_format_dt(intensity_time)})",
             })
 
     rad_series = df['RADIATION'].dropna()
@@ -474,12 +504,13 @@ def _build_stats(period: str):
         rad_time = rad_series.idxmax()
         rad_sum = float(rad_series.sum())
         result.append({
-            "label": "Глобална радиация",
-            "value": f"макс {rad_max:.1f} W/m² ({_format_dt(rad_time)})",
+            "label": "Слънчева радиация",
+            "value": f"макс {format_number(rad_max)} W/m² ({_format_dt(rad_time)})",
         })
+        rad_sum_kwh = rad_sum / 60000.0
         result.append({
-            "label": "Сума глобална радиация",
-            "value": f"{rad_sum:.1f} W/m²",
+            "label": "Сума слънчева радиация",
+            "value": f"{format_number(rad_sum_kwh)} kWh/m²",
         })
 
     return result
@@ -519,7 +550,7 @@ def report_data_endpoint():
         db_connection = get_db_connection()
         cursor = db_connection.cursor()
         query = (
-            f"SELECT {DATE_COLUMN}, T_AIR, REL_HUM, P_REL, WIND_SPEED_1, WIND_SPEED_2, "
+            f"SELECT {DATE_COLUMN}, T_AIR, T_WATER, REL_HUM, P_REL, P_ABS, WIND_SPEED_1, WIND_SPEED_2, "
             f"WIND_DIR, RAIN_MINUTE, EVAPOR_MINUTE FROM {DB_TABLE} "
             f"WHERE YEAR({DATE_COLUMN}) = %s AND MONTH({DATE_COLUMN}) = %s "
             f"ORDER BY {DATE_COLUMN} ASC"
@@ -534,8 +565,10 @@ def report_data_endpoint():
             columns=[
                 DATE_COLUMN,
                 "T_AIR",
+                "T_WATER",
                 "REL_HUM",
                 "P_REL",
+                "P_ABS",
                 "WIND_SPEED_1",
                 "WIND_SPEED_2",
                 "WIND_DIR",
@@ -559,8 +592,10 @@ def report_data_endpoint():
         daily_mean = df[
             [
                 "T_AIR",
+                "T_WATER",
                 "REL_HUM",
                 "P_REL",
+                "P_ABS",
                 "WIND_SPEED_1",
                 "WIND_SPEED_2",
                 "WIND_DIR",
