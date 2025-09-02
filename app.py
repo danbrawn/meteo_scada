@@ -213,9 +213,6 @@ def logout():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'username' not in session:
-            flash('You need to log in first.', 'warning')
-            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -224,8 +221,6 @@ def login_required(f):
 @app.route('/')
 @login_required
 def index():
-    if 'username' not in session:  # Check if user is logged in
-        return redirect(url_for('login'))  # Redirect to login if not authenticated
     return render_template('index.html')  # Serve the main page
 
 
@@ -287,7 +282,7 @@ def graph_data():
         df_res = df_res.dropna(how='all')
         df_res.reset_index(inplace=True)
         # Replace NaN values with None to ensure valid JSON serialization
-        df_res = df_res.where(pd.notnull(df_res), None)
+        df_res = df_res.astype(object).where(pd.notnull(df_res), None)
 
         result = {col: df_res[col].tolist() for col in df_res.columns}
         result[DATE_COLUMN] = [ts.isoformat() for ts in result[DATE_COLUMN]]
