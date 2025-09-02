@@ -25,7 +25,8 @@ $(document).ready(function() {
       const baseLayout = {
         xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true },
         margin: { l: 80, r: 80, t: 40, b: 80 },
-        legend: { orientation: 'h', y: -0.3 }
+        legend: { orientation: 'h', y: -0.3 },
+        hoverlabel: { namelength: -1 }
       };
       const config = { responsive: true, locale: 'bg' };
 
@@ -33,66 +34,149 @@ $(document).ready(function() {
         {
           id: 'graph-temp-hum',
           data: [
-            { x, y: data.T_AIR, name: 'Температура', type: 'scatter', yaxis: 'y1', line: { shape: 'spline' } },
-            { x, y: data.REL_HUM, name: 'Относителна влажност', type: 'scatter', yaxis: 'y2', line: { shape: 'spline' } }
+            {
+              x,
+              y: data.T_AIR,
+              name: 'Температура',
+              type: 'scatter',
+              yaxis: 'y1',
+              line: { shape: 'spline' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            },
+            {
+              x,
+              y: data.REL_HUM,
+              name: 'Относителна влажност',
+              type: 'scatter',
+              yaxis: 'y2',
+              line: { shape: 'spline' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            }
           ],
           layout: {
             title: 'Температура и Влажност',
-            yaxis: { title: 'Температура (°C)' },
-            yaxis2: { title: 'Влажност (%)', overlaying: 'y', side: 'right' }
+            yaxis: { title: 'Температура (°C)', tickformat: '.1f', hoverformat: '.1f', automargin: true },
+            yaxis2: {
+              title: 'Влажност (%)',
+              overlaying: 'y',
+              side: 'right',
+              tickformat: '.1f',
+              hoverformat: '.1f',
+              showline: true,
+              automargin: true
+            }
           }
         },
         {
           id: 'graph-pressure',
           data: [
-            { x, y: data.P_ABS, name: 'Налягане - абсолютно', type: 'scatter', line: { shape: 'spline' } },
-            { x, y: data.P_REL, name: 'Налягане - относително', type: 'scatter', line: { shape: 'spline' } }
+            {
+              x,
+              y: data.P_ABS,
+              name: 'Налягане - абсолютно',
+              type: 'scatter',
+              line: { shape: 'spline' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            },
+            {
+              x,
+              y: data.P_REL,
+              name: 'Налягане - относително',
+              type: 'scatter',
+              line: { shape: 'spline' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            }
           ],
           layout: {
             title: 'Налягане',
-            yaxis: { title: 'Налягане (hPa)' }
+            yaxis: { title: 'Налягане (hPa)', tickformat: '.1f', hoverformat: '.1f', automargin: true }
           }
         },
         {
           id: 'graph-wind',
           data: [
-            { x, y: data.WIND_SPEED_1, name: 'Скорост на вятъра 1', type: 'scatter', yaxis: 'y1', line: { shape: 'spline' } },
-            { x, y: data.WIND_SPEED_2, name: 'Скорост на вятъра 2', type: 'scatter', yaxis: 'y2', line: { shape: 'spline' } }
+            {
+              x,
+              y: data.WIND_SPEED_1,
+              name: 'Скорост на вятъра 1',
+              type: 'scatter',
+              yaxis: 'y1',
+              line: { shape: 'spline' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            },
+            {
+              x,
+              y: data.WIND_SPEED_2,
+              name: 'Скорост на вятъра 2',
+              type: 'scatter',
+              yaxis: 'y2',
+              line: { shape: 'spline' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            }
           ],
           layout: {
             title: 'Вятър',
-            yaxis: { title: 'Скорост 1 (km/h)' },
-            yaxis2: { title: 'Скорост 2 (m/s)', overlaying: 'y', side: 'right' }
+            yaxis: { title: 'Скорост 1 (km/h)', tickformat: '.1f', hoverformat: '.1f', automargin: true },
+            yaxis2: {
+              title: 'Скорост 2 (m/s)',
+              overlaying: 'y',
+              side: 'right',
+              tickformat: '.1f',
+              hoverformat: '.1f',
+              showline: true,
+              automargin: true
+            }
           }
         },
         {
           id: 'graph-rain',
           data: [
-            { x, y: data.RAIN_MINUTE, name: 'Дъжд', type: 'bar', marker: { color: 'blue' } }
+            {
+              x,
+              y: data.RAIN_MINUTE,
+              name: 'Дъжд',
+              type: 'bar',
+              marker: { color: 'blue' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            }
           ],
           layout: {
             title: 'Дъжд',
-            yaxis: { title: 'Дъжд (mm)' }
+            yaxis: { title: 'Дъжд (mm)', tickformat: '.1f', hoverformat: '.1f', automargin: true }
           }
         },
         {
           id: 'graph-evaporation',
           data: [
-            { x, y: data.EVAPOR_MINUTE, name: 'Изпарение', type: 'bar', marker: { color: 'green' } }
+            {
+              x,
+              y: data.EVAPOR_MINUTE,
+              name: 'Изпарение',
+              type: 'bar',
+              marker: { color: 'green' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            }
           ],
           layout: {
             title: 'Изпарение',
-            yaxis: { title: 'Изпарение (mm)' }
+            yaxis: { title: 'Изпарение (mm)', tickformat: '.1f', hoverformat: '.1f', automargin: true }
           }
         },
         {
           id: 'graph-solar-radiation',
           data: [
-            { x, y: data.RADIATION, name: 'Слънчева радиация', type: 'bar', marker: { color: 'orange' } }
+            {
+              x,
+              y: data.RADIATION,
+              name: 'Слънчева радиация',
+              type: 'bar',
+              marker: { color: 'orange' },
+              hovertemplate: '%{y:.1f}<extra>%{name}</extra>'
+            }
           ],
           layout: {
             title: 'Слънчева радиация',
-            yaxis: { title: 'Слънчева радиация (W/m²)' }
+            yaxis: { title: 'Слънчева радиация (W/m²)', tickformat: '.1f', hoverformat: '.1f', automargin: true }
           }
         }
       ];

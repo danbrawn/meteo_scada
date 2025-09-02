@@ -185,10 +185,31 @@ body {
 }
 
 /* Statistics section retains width constraints */
+#statistics-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    justify-items: center;
+}
+
+@media (max-width: 768px) {
+    #statistics-container {
+        grid-template-columns: 1fr;
+    }
+}
+
 #statistics-container .dashboard-card,
 #statistics-container .controls {
-    width: 95%;
-    max-width: 650px;
+    width: 100%;
+    max-width: none;
+    font-size: clamp(12px, 1vw, 16px);
+}
+
+#statistics-container .dashboard-card h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #000;
+    background: #fff;
 }
 
 /* Container for the label */
@@ -519,6 +540,9 @@ body {
 /* Report table styling */
 #report-container {
   overflow-x: auto;
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
 }
 
 #report-table {
@@ -526,6 +550,7 @@ body {
   width: 100%;
   min-width: 900px;
   font-size: 12px;
+  background: #fff;
 }
 
 #report-table th,
@@ -552,6 +577,9 @@ body {
 
 .report-controls {
   margin-bottom: 10px;
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
 }
 
 .report-controls select,
