@@ -69,7 +69,7 @@ $(document).ready(function() {
       const row = [p.name];
       for (let i = 0; i < days.length; i++) {
         const v = values[i];
-        row.push(v !== undefined && v !== null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '');
+        row.push(v !== undefined && v !== null ? Number(v).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : '');
       }
         csv.push(row.join(';'));
     });
