@@ -22,11 +22,15 @@ $(document).ready(function() {
         '30d': { dtick: 86400000, tickformat: '%d.%m' },
         '365d': { dtick: 'M1', tickformat: '%b' }
       };
+      const now = new Date();
+      const rangeMs = { '24h': 24 * 3600000, '30d': 30 * 86400000, '365d': 365 * 86400000 }[period];
+      const xRange = [new Date(now.getTime() - rangeMs), now];
       const baseLayout = {
-        xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true },
+        xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true, range: xRange },
         margin: { l: 80, r: 80, t: 40, b: 80 },
         legend: { orientation: 'h', y: -0.3 },
-        hoverlabel: { namelength: -1 }
+        hoverlabel: { namelength: -1 },
+        showlegend: true
       };
       const config = { responsive: true, locale: 'bg' };
 
@@ -37,7 +41,7 @@ $(document).ready(function() {
             {
               x,
               y: data.T_AIR,
-              name: 'Температура',
+              name: 'Температура [°C]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
@@ -46,7 +50,7 @@ $(document).ready(function() {
             {
               x,
               y: data.REL_HUM,
-              name: 'Относителна влажност',
+              name: 'Относителна влажност [%]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
@@ -72,7 +76,7 @@ $(document).ready(function() {
             {
               x,
               y: data.P_ABS,
-              name: 'Налягане - абсолютно',
+              name: 'Налягане - абсолютно [hPa]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
@@ -81,7 +85,7 @@ $(document).ready(function() {
             {
               x,
               y: data.P_REL,
-              name: 'Налягане - относително',
+              name: 'Налягане - относително [hPa]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
@@ -107,7 +111,7 @@ $(document).ready(function() {
             {
               x,
               y: data.WIND_SPEED_1,
-              name: 'Скорост на вятъра 1',
+              name: 'Скорост на вятъра 1 [km/h]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline' },
@@ -116,7 +120,7 @@ $(document).ready(function() {
             {
               x,
               y: data.WIND_SPEED_2,
-              name: 'Скорост на вятъра 2',
+              name: 'Скорост на вятъра 2 [m/s]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline' },
@@ -142,7 +146,7 @@ $(document).ready(function() {
             {
               x,
               y: data.RAIN_MINUTE,
-              name: 'Дъжд',
+              name: 'Дъжд [mm]',
               type: 'bar',
               marker: { color: 'blue' },
               hovertemplate: '%{fullData.name}: %{y:.1f} mm<extra></extra>'
@@ -159,7 +163,7 @@ $(document).ready(function() {
             {
               x,
               y: data.EVAPOR_MINUTE,
-              name: 'Изпарение',
+              name: 'Изпарение [mm]',
               type: 'bar',
               marker: { color: 'green' },
               hovertemplate: '%{fullData.name}: %{y:.1f} mm<extra></extra>'
@@ -176,7 +180,7 @@ $(document).ready(function() {
             {
               x,
               y: data.RADIATION,
-              name: 'Слънчева радиация',
+              name: 'Слънчева радиация [W/m²]',
               type: 'bar',
               marker: { color: 'orange' },
               hovertemplate: '%{fullData.name}: %{y:.1f} W/m²<extra></extra>'
@@ -190,9 +194,26 @@ $(document).ready(function() {
       ];
 
       plots.forEach(plot => {
-        Plotly.purge(plot.id);
+        const plotDiv = document.getElementById(plot.id);
         const layout = { ...baseLayout, ...plot.layout };
-        Plotly.newPlot(plot.id, plot.data, layout, config);
+        try {
+          Plotly.react(plotDiv, plot.data, layout, config);
+        } catch (err) {
+          console.error(`Грешка при начертаване на графика ${plot.id}:`, err);
+          plotDiv.innerHTML = '<p>Графиката не може да бъде заредена.</p>';
+        }
+      });
+    }).fail(function(jqxhr, textStatus, error) {
+      console.error('Грешка при зареждане на данни за графиките:', error);
+      [
+        'graph-temp-hum',
+        'graph-pressure',
+        'graph-wind',
+        'graph-rain',
+        'graph-evaporation',
+        'graph-solar-radiation'
+      ].forEach(id => {
+        document.getElementById(id).innerHTML = '<p>Грешка при зареждане на данни</p>';
       });
     });
   }
