@@ -14,7 +14,11 @@ $(document).ready(function() {
     { key: 'P_REL_14', name: 'Отн. налягане 14:00 hPa' },
     { key: 'EVAPOR_DAY', name: 'Изпарение mm/d' }
   ];
-  const days = Array.from({length: 31}, (_, i) => i + 1);
+  let days = [];
+  function updateDays(year, month) {
+    const numDays = new Date(year, month, 0).getDate();
+    days = Array.from({ length: numDays }, (_, i) => i + 1);
+  }
   let currentData = {};
 
   function buildTable(data) {
@@ -33,6 +37,7 @@ $(document).ready(function() {
   }
 
   function loadData(year, month) {
+    updateDays(year, month);
     $.getJSON(`/report_data?year=${year}&month=${month}`)
       .done(function(data) {
         currentData = data;
