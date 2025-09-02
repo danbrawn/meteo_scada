@@ -191,9 +191,26 @@ $(document).ready(function() {
       ];
 
       plots.forEach(plot => {
-        Plotly.purge(plot.id);
+        const plotDiv = document.getElementById(plot.id);
         const layout = { ...baseLayout, ...plot.layout };
-        Plotly.newPlot(plot.id, plot.data, layout, config);
+        try {
+          Plotly.react(plotDiv, plot.data, layout, config);
+        } catch (err) {
+          console.error(`Грешка при начертаване на графика ${plot.id}:`, err);
+          plotDiv.innerHTML = '<p>Графиката не може да бъде заредена.</p>';
+        }
+      });
+    }).fail(function(jqxhr, textStatus, error) {
+      console.error('Грешка при зареждане на данни за графиките:', error);
+      [
+        'graph-temp-hum',
+        'graph-pressure',
+        'graph-wind',
+        'graph-rain',
+        'graph-evaporation',
+        'graph-solar-radiation'
+      ].forEach(id => {
+        document.getElementById(id).innerHTML = '<p>Грешка при зареждане на данни</p>';
       });
     });
   }
