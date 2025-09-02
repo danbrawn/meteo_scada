@@ -282,7 +282,7 @@ def graph_data():
         df_res = df_res.dropna(how='all')
         df_res.reset_index(inplace=True)
         # Replace NaN values with None to ensure valid JSON serialization
-        df_res = df_res.where(pd.notnull(df_res), None)
+        df_res = df_res.astype(object).where(pd.notnull(df_res), None)
 
         result = {col: df_res[col].tolist() for col in df_res.columns}
         result[DATE_COLUMN] = [ts.isoformat() for ts in result[DATE_COLUMN]]
