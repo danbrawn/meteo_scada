@@ -99,12 +99,12 @@ $(document).ready(function () {
         };
 
         const columnGroups = {
-            'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER'],
-            'Слънчева радиация': ['RADIATION'],
-            'Изпарение': ['EVAPOR_MINUTE', 'EVAPOR_DAY'],
+            'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER', 'DEW_POINT'],
             'Параметри на вятъра': ['WIND_SPEED_1', 'WIND_SPEED_2', 'WIND_DIR', 'WIND_GUST'],
+            'Статистика за валежи': ['RAIN_MINUTE', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR'],
             'Атмосферно налягане': ['P_ABS', 'P_REL'],
-            'Статистика за валежи': ['RAIN_MINUTE', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR']
+            'Слънчева радиация': ['RADIATION'],
+            'Изпарения': ['EVAPOR_MINUTE', 'EVAPOR_DAY']
         };
 
         const timestamp = data['DateRef'];

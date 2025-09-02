@@ -213,9 +213,6 @@ def logout():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'username' not in session:
-            flash('You need to log in first.', 'warning')
-            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -224,8 +221,6 @@ def login_required(f):
 @app.route('/')
 @login_required
 def index():
-    if 'username' not in session:  # Check if user is logged in
-        return redirect(url_for('login'))  # Redirect to login if not authenticated
     return render_template('index.html')  # Serve the main page
 
 
