@@ -22,8 +22,11 @@ $(document).ready(function() {
         '30d': { dtick: 86400000, tickformat: '%d.%m' },
         '365d': { dtick: 'M1', tickformat: '%b' }
       };
+      const now = new Date();
+      const rangeMs = { '24h': 24 * 3600000, '30d': 30 * 86400000, '365d': 365 * 86400000 }[period];
+      const xRange = [new Date(now.getTime() - rangeMs), now];
       const baseLayout = {
-        xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true },
+        xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true, range: xRange },
         margin: { l: 80, r: 80, t: 40, b: 80 },
         legend: { orientation: 'h', y: -0.3 },
         hoverlabel: { namelength: -1 },
