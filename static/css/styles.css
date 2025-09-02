@@ -84,9 +84,18 @@ body {
   box-sizing: border-box; /* Prevent elements from going out of bounds */
 }
 
+#last-min-values-dashboard {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 /* Group container for last minute data */
 .dashboard-group {
   margin-bottom: 10px;
+  flex: 1 1 30%;
+  min-width: 250px;
 }
 
 
@@ -103,17 +112,11 @@ body {
 /* Fix for dashboard grid */
 /* Dashboard grid with consistent spacing between tiles */
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr); /* Four equal columns */
-  gap: 10px; /* Reduced space between items */
-  padding: 10px; /* Consistent padding inside the grid */
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
   box-sizing: border-box; /* Ensure padding is accounted for */
-}
-
-@media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: repeat(2, 1fr); /* Responsive fallback for smaller screens */
-  }
 }
 
 /* Ensure all dashboard items fit within the grid */
@@ -546,6 +549,8 @@ body {
   background: #fff;
   padding: 10px;
   border-radius: 8px;
+  display: flex;
+  justify-content: center;
 }
 
 #report-table {
@@ -554,6 +559,7 @@ body {
   min-width: 0;
   font-size: 12px;
   background: #fff;
+  margin: 0 auto;
 }
 
 #report-table th,
