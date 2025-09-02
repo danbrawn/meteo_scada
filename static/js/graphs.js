@@ -44,7 +44,7 @@ $(document).ready(function() {
               name: 'Температура [°C]',
               type: 'scatter',
               yaxis: 'y1',
-              line: { shape: 'spline' },
+              line: { shape: 'spline', color: 'red' },
               hovertemplate: '%{fullData.name}: %{y:.1f} °C<extra></extra>'
             },
             {
@@ -53,20 +53,22 @@ $(document).ready(function() {
               name: 'Относителна влажност [%]',
               type: 'scatter',
               yaxis: 'y2',
-              line: { shape: 'spline' },
+              line: { shape: 'spline', color: 'blue' },
               hovertemplate: '%{fullData.name}: %{y:.1f} %<extra></extra>'
             }
           ],
           layout: {
             title: 'Температура и Влажност',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true },
+            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'red', linecolor: 'red' },
             yaxis2: {
               overlaying: 'y',
               side: 'right',
               tickformat: '.1f',
               hoverformat: '.1f',
               showline: true,
-              automargin: true
+              automargin: true,
+              color: 'blue',
+              linecolor: 'blue'
             }
           }
         },
@@ -79,7 +81,7 @@ $(document).ready(function() {
               name: 'Налягане - абсолютно [hPa]',
               type: 'scatter',
               yaxis: 'y1',
-              line: { shape: 'spline' },
+              line: { shape: 'spline', color: 'green' },
               hovertemplate: '%{fullData.name}: %{y:.1f} hPa<extra></extra>'
             },
             {
@@ -88,20 +90,22 @@ $(document).ready(function() {
               name: 'Налягане - относително [hPa]',
               type: 'scatter',
               yaxis: 'y2',
-              line: { shape: 'spline' },
+              line: { shape: 'spline', color: 'purple' },
               hovertemplate: '%{fullData.name}: %{y:.1f} hPa<extra></extra>'
             }
           ],
           layout: {
             title: 'Налягане',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true },
+            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'green', linecolor: 'green' },
             yaxis2: {
               overlaying: 'y',
               side: 'right',
               tickformat: '.1f',
               hoverformat: '.1f',
               showline: true,
-              automargin: true
+              automargin: true,
+              color: 'purple',
+              linecolor: 'purple'
             }
           }
         },
@@ -114,7 +118,7 @@ $(document).ready(function() {
               name: 'Скорост на вятъра 1 [km/h]',
               type: 'scatter',
               yaxis: 'y1',
-              line: { shape: 'spline' },
+              line: { shape: 'spline', color: 'orange' },
               hovertemplate: '%{fullData.name}: %{y:.1f} km/h<extra></extra>'
             },
             {
@@ -123,20 +127,22 @@ $(document).ready(function() {
               name: 'Скорост на вятъра 2 [m/s]',
               type: 'scatter',
               yaxis: 'y2',
-              line: { shape: 'spline' },
+              line: { shape: 'spline', color: 'teal' },
               hovertemplate: '%{fullData.name}: %{y:.1f} m/s<extra></extra>'
             }
           ],
           layout: {
             title: 'Вятър',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true },
+            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'orange', linecolor: 'orange' },
             yaxis2: {
               overlaying: 'y',
               side: 'right',
               tickformat: '.1f',
               hoverformat: '.1f',
               showline: true,
-              automargin: true
+              automargin: true,
+              color: 'teal',
+              linecolor: 'teal'
             }
           }
         },
@@ -154,7 +160,7 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Дъжд',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true }
+            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'blue', linecolor: 'blue' }
           }
         },
         {
@@ -171,7 +177,7 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Изпарение',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true }
+            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'green', linecolor: 'green' }
           }
         },
         {
@@ -188,7 +194,7 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Слънчева радиация',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true }
+            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'orange', linecolor: 'orange' }
           }
         }
       ];
