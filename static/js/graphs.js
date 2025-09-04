@@ -115,7 +115,7 @@ $(document).ready(function() {
             {
               x,
               y: data.WIND_SPEED_1,
-              name: 'Скорост на вятъра 1 [km/h]',
+              name: 'Скорост на вятъра [km/h]',
               type: 'scatter',
               yaxis: 'y1',
               line: { shape: 'spline', color: 'orange' },
@@ -124,7 +124,7 @@ $(document).ready(function() {
             {
               x,
               y: data.WIND_SPEED_2,
-              name: 'Скорост на вятъра 2 [m/s]',
+              name: 'Скорост на вятъра [m/s]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline', color: 'teal' },
@@ -152,14 +152,14 @@ $(document).ready(function() {
             {
               x,
               y: data.RAIN_MINUTE,
-              name: 'Дъжд [mm]',
+              name: 'Валежи [mm]',
               type: 'bar',
               marker: { color: 'blue' },
               hovertemplate: '%{fullData.name}: %{y:.1f} mm<extra></extra>'
             }
           ],
           layout: {
-            title: 'Дъжд',
+            title: 'Валежи',
             yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'blue', linecolor: 'blue' }
           }
         },

@@ -8,7 +8,7 @@ $(document).ready(function() {
     { key: 'WIND_SPEED_1', name: 'Скорост на вятъра', unit: 'km/h' },
     { key: 'WIND_SPEED_2', name: 'Скорост на вятъра', unit: 'm/s' },
     { key: 'WIND_DIR', name: 'Посока на вятъра', unit: 'DEG' },
-    { key: 'RAIN', name: 'Валежи', unit: 'l/m2' },
+    { key: 'RAIN', name: 'Валежи', unit: 'l/m²' },
     { key: 'T_AIR_14', name: 'Температура 14:00', unit: '°C' },
     { key: 'REL_HUM_14', name: 'Отн. влажност 14:00', unit: '%' },
     { key: 'P_REL_14', name: 'Отн. налягане 14:00', unit: 'hPa' },

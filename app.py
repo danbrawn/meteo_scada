@@ -485,7 +485,7 @@ def _build_stats(period: str):
 
     rain_total = df['RAIN_MINUTE'].dropna().sum()
     if rain_total:
-        label = "Сума дъжд за деня" if period == 'today' else "Сума дъжд"
+        label = "Сума валежи за деня" if period == 'today' else "Сума валежи"
         result.append({
             "label": label,
             "value": f"{format_number(rain_total)} mm",
