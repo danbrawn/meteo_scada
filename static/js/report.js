@@ -1,22 +1,22 @@
 $(document).ready(function() {
   const params = [
-    { key: 'T_AIR', name: 'Температура °C' },
-    { key: 'T_WATER', name: 'Температура на водата °C' },
-    { key: 'REL_HUM', name: 'Относителна влажност %' },
-    { key: 'P_REL', name: 'Относително налягане hPa' },
-    { key: 'P_ABS', name: 'Абсолютно налягане hPa' },
-    { key: 'WIND_SPEED_1', name: 'Скорост на вятъра km/h' },
-    { key: 'WIND_SPEED_2', name: 'Скорост на вятъра m/s' },
-    { key: 'WIND_DIR', name: 'Посока на вятъра (DEG)' },
-    { key: 'RAIN', name: 'Валежи (l/m2)' },
-    { key: 'T_AIR_14', name: 'Температура 14:00 °C' },
-    { key: 'REL_HUM_14', name: 'Отн. влажност 14:00 %' },
-    { key: 'P_REL_14', name: 'Отн. налягане 14:00 hPa' },
-    { key: 'EVAPOR_DAY', name: 'Изпарение mm/d' }
+    { key: 'T_AIR', name: 'Температура', unit: '°C' },
+    { key: 'T_WATER', name: 'Температура на водата', unit: '°C' },
+    { key: 'REL_HUM', name: 'Относителна влажност', unit: '%' },
+    { key: 'P_REL', name: 'Относително налягане', unit: 'hPa' },
+    { key: 'P_ABS', name: 'Абсолютно налягане', unit: 'hPa' },
+    { key: 'WIND_SPEED_1', name: 'Скорост на вятъра', unit: 'km/h' },
+    { key: 'WIND_SPEED_2', name: 'Скорост на вятъра', unit: 'm/s' },
+    { key: 'WIND_DIR', name: 'Посока на вятъра', unit: 'DEG' },
+    { key: 'RAIN', name: 'Валежи', unit: 'l/m2' },
+    { key: 'T_AIR_14', name: 'Температура 14:00', unit: '°C' },
+    { key: 'REL_HUM_14', name: 'Отн. влажност 14:00', unit: '%' },
+    { key: 'P_REL_14', name: 'Отн. налягане 14:00', unit: 'hPa' },
+    { key: 'EVAPOR_DAY', name: 'Изпарение', unit: 'mm/d' }
   ];
   let days = [];
   function updateDays(year, month) {
-    const numDays = new Date(year, month, 0).getDate();
+    const numDays = new Date(Number(year), Number(month), 0).getDate();
     days = Array.from({ length: numDays }, (_, i) => i + 1);
   }
   let currentData = {};
@@ -31,7 +31,7 @@ $(document).ready(function() {
         const v = values[d-1];
         return `<td>${v !== undefined && v !== null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''}</td>`;
       }).join('');
-      return `<tr><td class="sticky-col">${p.name}</td>${cells}</tr>`;
+      return `<tr><td class="sticky-col">${p.name}, ${p.unit}</td>${cells}</tr>`;
     }).join('');
     $('#report-table tbody').html(rows);
   }
@@ -71,7 +71,7 @@ $(document).ready(function() {
     let csv = ['Параметър;' + days.join(';')];
     params.forEach(p => {
       const values = currentData[p.key] || [];
-      const row = [p.name];
+      const row = [`${p.name}, ${p.unit}`];
       for (let i = 0; i < days.length; i++) {
         const v = values[i];
         row.push(v !== undefined && v !== null ? Number(v).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : '');

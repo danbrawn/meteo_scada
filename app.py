@@ -12,6 +12,7 @@ from flask_bcrypt import Bcrypt
 import logging
 import os
 import pandas as pd
+import numpy as np
 from flask import (
     Flask,
     render_template,
@@ -330,6 +331,16 @@ def format_number(val: float) -> str:
     return f"{sign}{whole_with_space},{frac}"
 
 
+def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
+    """Calculate dew point temperature given air temperature and relative humidity."""
+    temp_c = pd.to_numeric(temp_c, errors="coerce")
+    rel_hum = pd.to_numeric(rel_hum, errors="coerce")
+    a = 17.27
+    b = 237.7
+    alpha = (a * temp_c / (b + temp_c)) + np.log(rel_hum / 100.0)
+    return (b * alpha) / (a - alpha)
+
+
 def _build_stats(period: str):
     now = datetime.now()
     if period == 'today':
@@ -423,6 +434,18 @@ def _build_stats(period: str):
                 f"макс {format_number(hum['max'])}% ({hum['max_time']})",
             ],
         })
+
+    if 'T_AIR' in df.columns and 'REL_HUM' in df.columns:
+        df['DEW_POINT'] = _dew_point(df['T_AIR'], df['REL_HUM'])
+        dew = _min_max_with_time(df, 'DEW_POINT')
+        if dew:
+            result.append({
+                "label": "Точка на роса",
+                "value": [
+                    f"мин {format_number(dew['min'])}°C ({dew['min_time']})",
+                    f"макс {format_number(dew['max'])}°C ({dew['max_time']})",
+                ],
+            })
 
     press_rel = _min_max_with_time(df, 'P_REL')
     if press_rel:
@@ -574,8 +597,26 @@ def report_data_endpoint():
         if df.empty:
             return jsonify({})
 
+        numeric_cols = [
+            "T_AIR",
+            "T_WATER",
+            "REL_HUM",
+            "P_REL",
+            "P_ABS",
+            "WIND_SPEED_1",
+            "WIND_SPEED_2",
+            "WIND_DIR",
+            "RAIN_MINUTE",
+            "EVAPOR_MINUTE",
+        ]
+        # Ensure numeric values regardless of decimal separators and sort index for resampling
+        df[numeric_cols] = df[numeric_cols].apply(
+            lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
+        )
+
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
+        df.sort_index(inplace=True)
 
         import calendar
 
