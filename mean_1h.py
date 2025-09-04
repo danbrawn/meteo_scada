@@ -133,7 +133,10 @@ def makeHourData():
         temp_df = pd.DataFrame(temp_data, columns=raw_data.columns)
 
         # Compute the mean for numeric columns (excluding 'DateRef')
-        mean_values = temp_df.iloc[:, 1:].apply(pd.to_numeric, errors='coerce').mean().round(4)
+        numeric = temp_df.iloc[:, 1:].apply(
+            lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
+        )
+        mean_values = numeric.mean().round(4)
 
         # Update output_data with the mean values
         for col_name, value in mean_values.items():

@@ -572,7 +572,8 @@ body {
 #report-table .sticky-col {
   position: sticky;
   left: 0;
-  background: #fff;
+  background: #62bf8f;
+  color: #fff;
   z-index: 2;
 }
 
