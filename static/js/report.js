@@ -43,8 +43,8 @@ $(document).ready(function() {
         currentData = data;
         buildTable(data);
       })
-      .fail(function() {
-        console.error('Failed to load report data');
+      .fail(function(jqXHR) {
+        console.error('Failed to load report data', jqXHR.responseText);
         buildTable({});
       });
   }
