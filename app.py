@@ -609,11 +609,14 @@ def report_data_endpoint():
             "RAIN_MINUTE",
             "EVAPOR_MINUTE",
         ]
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        # Ensure numeric values regardless of decimal separators and sort index for resampling
+        df[numeric_cols] = df[numeric_cols].apply(
+            lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
+        )
 
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
+        df.sort_index(inplace=True)
 
         import calendar
 
