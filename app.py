@@ -605,6 +605,12 @@ def report_data_endpoint():
                 lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
             )
 
+        # Convert numeric values and prepare index
+        if cols:
+            df[cols] = df[cols].apply(
+                lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
+            )
+
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
         df.sort_index(inplace=True)
@@ -653,7 +659,7 @@ def report_data_endpoint():
             )
 
         combined = combined.round(1)
-        combined = combined.where(pd.notnull(combined), None)
+        combined = combined.astype(object).where(pd.notnull(combined), None)
 
         result = {col: combined[col].tolist() for col in combined.columns}
         return jsonify(result)
