@@ -12,6 +12,7 @@ from flask_bcrypt import Bcrypt
 import logging
 import os
 import pandas as pd
+import numpy as np
 from flask import (
     Flask,
     render_template,
@@ -330,6 +331,16 @@ def format_number(val: float) -> str:
     return f"{sign}{whole_with_space},{frac}"
 
 
+def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
+    """Calculate dew point temperature given air temperature and relative humidity."""
+    temp_c = pd.to_numeric(temp_c, errors="coerce")
+    rel_hum = pd.to_numeric(rel_hum, errors="coerce")
+    a = 17.27
+    b = 237.7
+    alpha = (a * temp_c / (b + temp_c)) + np.log(rel_hum / 100.0)
+    return (b * alpha) / (a - alpha)
+
+
 def _build_stats(period: str):
     now = datetime.now()
     if period == 'today':
@@ -423,6 +434,18 @@ def _build_stats(period: str):
                 f"макс {format_number(hum['max'])}% ({hum['max_time']})",
             ],
         })
+
+    if 'T_AIR' in df.columns and 'REL_HUM' in df.columns:
+        df['DEW_POINT'] = _dew_point(df['T_AIR'], df['REL_HUM'])
+        dew = _min_max_with_time(df, 'DEW_POINT')
+        if dew:
+            result.append({
+                "label": "Точка на роса",
+                "value": [
+                    f"мин {format_number(dew['min'])}°C ({dew['min_time']})",
+                    f"макс {format_number(dew['max'])}°C ({dew['max_time']})",
+                ],
+            })
 
     press_rel = _min_max_with_time(df, 'P_REL')
     if press_rel:
@@ -544,9 +567,27 @@ def report_data_endpoint():
     try:
         db_connection = get_db_connection()
         cursor = db_connection.cursor()
+
+        # Discover available columns to avoid SQL errors if some are missing
+        cursor.execute(f"SHOW COLUMNS FROM {DB_TABLE}")
+        available = {row[0] for row in cursor.fetchall()}
+
+        requested = [
+            "T_AIR",
+            "T_WATER",
+            "REL_HUM",
+            "P_REL",
+            "P_ABS",
+            "WIND_SPEED_1",
+            "WIND_SPEED_2",
+            "WIND_DIR",
+            "RAIN_MINUTE",
+            "EVAPOR_MINUTE",
+        ]
+        cols = [c for c in requested if c in available]
+
         query = (
-            f"SELECT {DATE_COLUMN}, T_AIR, T_WATER, REL_HUM, P_REL, P_ABS, WIND_SPEED_1, WIND_SPEED_2, "
-            f"WIND_DIR, RAIN_MINUTE, EVAPOR_MINUTE FROM {DB_TABLE} "
+            f"SELECT {DATE_COLUMN}, {', '.join(cols)} FROM {DB_TABLE} "
             f"WHERE YEAR({DATE_COLUMN}) = %s AND MONTH({DATE_COLUMN}) = %s "
             f"ORDER BY {DATE_COLUMN} ASC"
         )
@@ -555,37 +596,30 @@ def report_data_endpoint():
         cursor.close()
         db_connection.close()
 
-        df = pd.DataFrame(
-            data,
-            columns=[
-                DATE_COLUMN,
-                "T_AIR",
-                "T_WATER",
-                "REL_HUM",
-                "P_REL",
-                "P_ABS",
-                "WIND_SPEED_1",
-                "WIND_SPEED_2",
-                "WIND_DIR",
-                "RAIN_MINUTE",
-                "EVAPOR_MINUTE",
-            ],
-        )
+        df = pd.DataFrame(data, columns=[DATE_COLUMN] + cols)
         if df.empty:
             return jsonify({})
 
+        # Convert numeric values and prepare index
+        if cols:
+            df[cols] = df[cols].apply(
+                lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
+            )
+
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
+        df.sort_index(inplace=True)
 
         import calendar
 
         days_in_month = calendar.monthrange(year, month)[1]
-        idx = pd.date_range(
-            start=datetime(year, month, 1), periods=days_in_month, freq="D"
-        )
+        idx = pd.date_range(start=datetime(year, month, 1), periods=days_in_month, freq="D")
 
-        daily_mean = df[
-            [
+        combined = pd.DataFrame(index=idx)
+
+        mean_cols = [
+            c
+            for c in [
                 "T_AIR",
                 "T_WATER",
                 "REL_HUM",
@@ -595,26 +629,31 @@ def report_data_endpoint():
                 "WIND_SPEED_2",
                 "WIND_DIR",
             ]
-        ].resample("D").mean()
-        daily_rain = df["RAIN_MINUTE"].resample("D").sum().rename("RAIN")
-        daily_evapor = (
-            df["EVAPOR_MINUTE"].resample("D").sum().rename("EVAPOR_DAY")
-        )
-        at_14 = (
-            df.between_time("14:00", "14:00")[
-                ["T_AIR", "REL_HUM", "P_REL"]
-            ].resample("D").mean().add_suffix("_14")
-        )
+            if c in df.columns
+        ]
+        if mean_cols:
+            combined = combined.join(df[mean_cols].resample("D").mean())
 
-        combined = (
-            pd.DataFrame(index=idx)
-            .join(daily_mean)
-            .join(daily_rain)
-            .join(at_14)
-            .join(daily_evapor)
-        )
+        if "RAIN_MINUTE" in df.columns:
+            combined = combined.join(
+                df["RAIN_MINUTE"].resample("D").sum().rename("RAIN")
+            )
+
+        if "EVAPOR_MINUTE" in df.columns:
+            combined = combined.join(
+                df["EVAPOR_MINUTE"].resample("D").sum().rename("EVAPOR_DAY")
+            )
+
+        at_14_cols = [c for c in ["T_AIR", "REL_HUM", "P_REL"] if c in df.columns]
+        if at_14_cols:
+            combined = combined.join(
+                df.between_time("14:00", "14:00")[at_14_cols]
+                .resample("D")
+                .mean()
+                .add_suffix("_14")
+            )
+
         combined = combined.round(1)
-        # Replace NaN values with None so JSON is valid
         combined = combined.where(pd.notnull(combined), None)
 
         result = {col: combined[col].tolist() for col in combined.columns}
