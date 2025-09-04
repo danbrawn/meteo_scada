@@ -599,7 +599,6 @@ def report_data_endpoint():
         df = pd.DataFrame(data, columns=[DATE_COLUMN] + cols)
         if df.empty:
             return jsonify({})
-
         # Convert numeric values and prepare index
         if cols:
             df[cols] = df[cols].apply(
