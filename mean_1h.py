@@ -81,8 +81,8 @@ def openSQLconnection(start_date):
     database = config.get('SQL', 'database')
     raw_table = config.get('SQL', 'DB_TABLE_MIN')
 
-    # Connect to the MySQL database using SQLAlchemy
-    conn_str = f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}'
+    # Connect to the MySQL database using SQLAlchemy and PyMySQL
+    conn_str = f'mysql+pymysql://{user}:{password}@{host}:{port}/{database}'
     engine = sa.create_engine(conn_str, echo=True)
 
     # Construct the list of column names for the query

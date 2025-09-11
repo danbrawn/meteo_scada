@@ -9,4 +9,3 @@ pymysql
 openpyxl
 SQLAlchemy
 numpy
-mysql-connector-python
