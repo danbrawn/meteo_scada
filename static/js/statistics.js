@@ -21,15 +21,20 @@ $(document).ready(function () {
     );
   }
 
-  fetch('/statistics_data')
-    .then(response => response.json())
-    .then(data => {
-      $('#stats-today').html(listToHtml(data.today || []));
-      $('#stats-month').html(listToHtml(data.month || []));
-      $('#stats-year').html(listToHtml(data.year || []));
-      $('#stats-alltime').html(listToHtml(data.all || []));
-    })
-    .catch(err => {
-      console.error('Error loading statistics', err);
-    });
+  function fetchStatistics() {
+    fetch('/statistics_data')
+      .then(response => response.json())
+      .then(data => {
+        $('#stats-today').html(listToHtml(data.today || []));
+        $('#stats-month').html(listToHtml(data.month || []));
+        $('#stats-year').html(listToHtml(data.year || []));
+        $('#stats-alltime').html(listToHtml(data.all || []));
+      })
+      .catch(err => {
+        console.error('Error loading statistics', err);
+      });
+  }
+
+  fetchStatistics();
+  setInterval(fetchStatistics, 60000);
 });
