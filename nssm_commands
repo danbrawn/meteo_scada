@@ -1,0 +1,27 @@
+# ПЪТЕКИ – смени ги според теб:
+$AppDir   = "C:\Apps\MeteoScada"                   # където ще копираш dist\MeteoScada\
+$ExePath  = "C:\Apps\MeteoScada\MeteoScada.exe"           # изходното EXE от PyInstaller
+$SvcName  = "MeteoScada"
+$LogsDir  = "C:\Apps\MeteoScada\logs"
+$nssm     = "C:\Tools\nssm\nssm.exe"
+
+# Създай папки:
+New-Item -ItemType Directory -Force -Path $AppDir,$LogsDir | Out-Null
+# копирай dist\MeteoScada\* в $AppDir предварително
+
+# Инсталация на услугата:
+& $nssm install $SvcName $ExePath
+& $nssm set $SvcName AppDirectory $AppDir
+& $nssm set $SvcName Start SERVICE_AUTO_START
+& $nssm set $SvcName AppStdout "$LogsDir\stdout.log"
+& $nssm set $SvcName AppStderr "$LogsDir\stderr.log"
+& $nssm set $SvcName AppStopMethodSkip 6          # по-„груб“ stop при нужда
+& $nssm set $SvcName AppStopMethodConsole 15000   # време за graceful stop (ms)
+& $nssm set $SvcName AppExit Default Restart
+& $nssm set $SvcName AppThrottle 15000
+
+# Отвори firewall (ако слушаш на 8080):
+netsh advfirewall firewall add rule name="MeteoScada 8080" dir=in action=allow protocol=TCP localport=8080
+
+# Стартирай:
+& $nssm start $SvcName

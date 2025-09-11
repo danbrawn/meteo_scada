@@ -10,7 +10,7 @@ import mean_1h
 
 from flask_bcrypt import Bcrypt
 import logging
-import os
+import os, sys
 import pandas as pd
 import numpy as np
 from flask import (
@@ -35,6 +35,13 @@ import insertMissingDataFromCSV
 from logging import FileHandler, WARNING
 import threading
 import time
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = sys._MEIPASS  # при onefile билд
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # Create a logger
 logger = logging.getLogger()
@@ -117,7 +124,9 @@ def get_db_connection():
 
 #INitialize plot
 
-STATIC_FOLDER = os.path.join(current_dir, 'static')
+# Пример за config.ini:
+
+STATIC_FOLDER = os.path.join(BASE_DIR, 'static')
 #TEMPLATES_FOLDER = os.path.join(current_dir, 'templates')
 template_dir = os.path.abspath('templates')
 app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder=template_dir)
