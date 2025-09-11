@@ -72,9 +72,12 @@ def read_config():
     return db_config, ftp_config
 
 
-# Step 2: Connect to the MySQL database using SQLAlchemy
+# Step 2: Connect to the MySQL database using SQLAlchemy and PyMySQL
 def create_db_connection(db_config):
-    conn_str = f"mysql+mysqlconnector://{db_config['username']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+    conn_str = (
+        f"mysql+pymysql://{db_config['username']}:{db_config['password']}@"
+        f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
+    )
     engine = sa.create_engine(conn_str, echo=True)
     return engine
 

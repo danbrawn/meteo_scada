@@ -226,4 +226,5 @@ $(document).ready(function() {
   }
   $('#period-select').change(renderGraphs);
   renderGraphs();
+  setInterval(renderGraphs, 60000);
 });

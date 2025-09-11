@@ -6,29 +6,6 @@ import sqlalchemy as sa
 import sys
 import numpy as np
 import configparser
-import os
-import logging
-from logging.handlers import RotatingFileHandler
-
-
-def setup_logger(log_filename):
-    log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-    if not os.path.exists(log_filename):
-        open(log_filename, 'w').close()
-
-    log_handler = RotatingFileHandler(log_filename, mode='a', maxBytes=10 * 1024 * 1024, backupCount=5)
-    log_handler.setFormatter(log_formatter)
-
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(log_handler)
-
-    return logger
-
-
-log_filename = 'mean1H_LOG.log'
-logger = setup_logger(log_filename)
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
@@ -81,8 +58,8 @@ def openSQLconnection(start_date):
     database = config.get('SQL', 'database')
     raw_table = config.get('SQL', 'DB_TABLE_MIN')
 
-    # Connect to the MySQL database using SQLAlchemy
-    conn_str = f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}'
+    # Connect to the MySQL database using SQLAlchemy and PyMySQL
+    conn_str = f'mysql+pymysql://{user}:{password}@{host}:{port}/{database}'
     engine = sa.create_engine(conn_str, echo=True)
 
     # Construct the list of column names for the query
@@ -101,9 +78,8 @@ def openSQLconnection(start_date):
         else:
             raw_data['DateRef'] = pd.to_datetime(raw_data['DateRef'])  # Convert DateRef column to datetime type
             return 'Exists_data_for_that_hour'
-        logger.info="SQL raw data is read"
     except Exception as e:
-        logger.info = f"openSQLconnection {e}"
+        print(f"openSQLconnection {e}")
     st=1
 
 
@@ -146,9 +122,8 @@ def makeHourData():
         # output_data.at[0, 'DateRef'] = start_time
         output_data.at[0, 'DateRef'] = start_time + pd.Timedelta(hours=1)
 
-        logger.info = "makeHourData ok"
     except Exception as e:
-        logger.info = f"makeHourData {e}"
+        print(f"makeHourData {e}")
 
 
 def populateMean1hour():
