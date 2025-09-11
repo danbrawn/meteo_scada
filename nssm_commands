@@ -3,7 +3,7 @@ $AppDir   = "C:\Apps\MeteoScada"                   # където ще копи�
 $ExePath  = "C:\Apps\MeteoScada\MeteoScada.exe"           # изходното EXE от PyInstaller
 $SvcName  = "MeteoScada"
 $LogsDir  = "C:\Apps\MeteoScada\logs"
-$nssm     = "C:\Tools\nssm\nssm.exe"
+$nssm     = "C:\Apps\MeteoScada\nssm\nssm.exe"
 
 # Създай папки:
 New-Item -ItemType Directory -Force -Path $AppDir,$LogsDir | Out-Null
