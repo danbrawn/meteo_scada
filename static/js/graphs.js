@@ -123,12 +123,12 @@ $(document).ready(function() {
             },
             {
               x,
-              y: data.WIND_SPEED_2,
-              name: 'Скорост на вятъра [m/s]',
+              y: data.WIND_DIR,
+              name: 'Посока на вятъра [°]',
               type: 'scatter',
               yaxis: 'y2',
               line: { shape: 'spline', color: 'teal' },
-              hovertemplate: '%{fullData.name}: %{y:.1f} m/s<extra></extra>'
+              hovertemplate: '%{fullData.name}: %{y:.0f}°<extra></extra>'
             }
           ],
           layout: {
@@ -137,12 +137,13 @@ $(document).ready(function() {
             yaxis2: {
               overlaying: 'y',
               side: 'right',
-              tickformat: '.1f',
-              hoverformat: '.1f',
+              tickformat: '.0f',
+              hoverformat: '.0f',
               showline: true,
               automargin: true,
               color: 'teal',
-              linecolor: 'teal'
+              linecolor: 'teal',
+              range: [0, 360]
             }
           }
         },
