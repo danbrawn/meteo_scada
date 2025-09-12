@@ -188,21 +188,21 @@ def mean_1h(start_datetime, end_datetime):
                 print(f"Hour starting at {start_time} not finished; skipping")
                 continue
             result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
-            if result == 'No_data_for_that_hour':
-                populateMean1hour()
-            elif result == 'Exists_data_for_that_hour':
+            if result == 'Exists_data_for_that_hour':
                 makeHourData()
                 populateMean1hour()
+            else:
+                print(f"No data for hour starting at {start_time}; skipping")
             closeSQLconnection()
     else:
         hour_end = start_time + timedelta(hours=1)
         if datetime.now() >= hour_end:
             result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
-            if result == 'No_data_for_that_hour':
-                populateMean1hour()
-            elif result == 'Exists_data_for_that_hour':
+            if result == 'Exists_data_for_that_hour':
                 makeHourData()
                 populateMean1hour()
+            else:
+                print(f"No data for hour starting at {start_time}; skipping")
             closeSQLconnection()
         else:
             print(f"Hour starting at {start_time} not finished; skipping")
