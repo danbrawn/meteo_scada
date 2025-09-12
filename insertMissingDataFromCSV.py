@@ -325,25 +325,35 @@ def main():
     #         result = connection.execute(query).scalar()
     #     return result
     try:
-        if new_hours:
-            # Process only hours that have fully passed. For example, if data spans
-            # 11:00–12:10 at 12:10, compute only for 11:00; the 12:00 hour will
-            # be handled after it completes (at 13:00 or later).
-            boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
-            hourly_table = db_config['hourly_table']
-            for hour in sorted(new_hours):
-                hour_dt = hour.to_pydatetime() if hasattr(hour, 'to_pydatetime') else hour
-                if hour_dt < boundary_hour:
-                    mean_ref = hour_dt + timedelta(hours=1)
-                    with engine.connect() as conn:
-                        exists = conn.execute(
-                            text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
-                            {"dt": mean_ref}
-                        ).scalar()
-                    if not exists:
-                        call_mean_hourly(hour_dt, hour_dt)
-        else:
+        boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
+        hourly_table = db_config['hourly_table']
+        raw_table = db_config['table_name']
+        last_hourly_dt = get_last_record_datetime(engine, hourly_table)
+        start_hour = (
+            last_hourly_dt
+            if last_hourly_dt is not None
+            else (earliest_new_datetime.floor('H') if earliest_new_datetime is not None else None)
+        )
+        if start_hour is None:
             return "No new data inserted; skipping hourly mean calculation."
+        current_hour = start_hour
+        while current_hour < boundary_hour:
+            hour_end = current_hour + timedelta(hours=1)
+            with engine.connect() as conn:
+                has_raw = conn.execute(
+                    text(
+                        f"SELECT 1 FROM {raw_table} "
+                        "WHERE DateRef >= :start AND DateRef < :end LIMIT 1"
+                    ),
+                    {"start": current_hour, "end": hour_end}
+                ).scalar()
+                has_mean = conn.execute(
+                    text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
+                    {"dt": hour_end}
+                ).scalar()
+            if has_raw and not has_mean:
+                call_mean_hourly(current_hour, current_hour)
+            current_hour = hour_end
     except Exception as e:
         logging.error(f"Error calculating hourly mean: {e}")
         print(e)
