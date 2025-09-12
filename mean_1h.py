@@ -133,12 +133,11 @@ def populateMean1hour():
     mean_1hour_table=config.get('SQL', 'mean_1hour_table')
     # Insert output_data into the "mean1hour" table using the opened sqlalchemy engine
     try:
-        # NULL се замества с 0. Нужно ли е?
-        # Get the column names except the first and last columns
-        #columns_to_convert = output_data.columns[1:]
-
-        # Convert selected columns to float
-        #output_data[columns_to_convert] = output_data[columns_to_convert].astype(float)
+        # Ensure numeric columns use a dot decimal separator before writing
+        numeric_cols = output_data.columns.drop('DateRef')
+        output_data[numeric_cols] = output_data[numeric_cols].apply(
+            lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
+        )
 
         # Now use to_sql() with your DataFrame
         output_data.to_sql(mean_1hour_table, con=engine, if_exists='append', index=False)
