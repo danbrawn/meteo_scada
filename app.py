@@ -598,18 +598,21 @@ def report_data_endpoint():
 
         df = pd.DataFrame(data, columns=[DATE_COLUMN] + cols)
         if df.empty:
+            logger.error(f"No data returned for {year}-{month} from {DB_TABLE}")
             return jsonify({})
-        # Convert numeric values and prepare index
-        if cols:
-            df[cols] = df[cols].apply(
-                lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
-            )
 
-        # Convert numeric values and prepare index
-        if cols:
-            df[cols] = df[cols].apply(
-                lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
-            )
+        # Convert numeric values and track columns that fail to parse
+        for c in cols:
+            raw = df[c].astype(str)
+            df[c] = pd.to_numeric(raw.str.replace(",", "."), errors="coerce")
+            if df[c].isna().all():
+                logger.error(
+                    "Column %s has no numeric data for %04d-%02d; sample raw values: %s",
+                    c,
+                    year,
+                    month,
+                    raw.head().tolist(),
+                )
 
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
@@ -659,6 +662,15 @@ def report_data_endpoint():
             )
 
         combined = combined.round(1)
+
+        for col in combined.columns:
+            if combined[col].isna().all():
+                logger.error(
+                    "No computed data for column %s in %04d-%02d after aggregation",
+                    col,
+                    year,
+                    month,
+                )
 
         def format_val(v):
             return f"{v:.1f}".replace('.', ',') if pd.notnull(v) else None
