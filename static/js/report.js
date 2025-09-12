@@ -29,7 +29,8 @@ $(document).ready(function() {
       const values = data[p.key] || [];
       const cells = days.map(d => {
         const v = values[d-1];
-        return `<td>${v !== undefined && v !== null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''}</td>`;
+        const num = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
+        return `<td>${v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : ''}</td>`;
       }).join('');
       return `<tr><td class="sticky-col">${p.name}, ${p.unit}</td>${cells}</tr>`;
     }).join('');
@@ -74,7 +75,8 @@ $(document).ready(function() {
       const row = [`${p.name}, ${p.unit}`];
       for (let i = 0; i < days.length; i++) {
         const v = values[i];
-        row.push(v !== undefined && v !== null ? Number(v).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : '');
+        const num = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
+        row.push(v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : '');
       }
         csv.push(row.join(';'));
     });

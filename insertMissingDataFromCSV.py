@@ -28,15 +28,12 @@ logger.addHandler(file_handler)
 
 file_handler = FileHandler('errorlog.txt')
 file_handler.setLevel(WARNING)
-
-DB_TABLE_HOUR = datetime.now()
 def call_mean_hourly(start_datetime, end_datetime):
     print(f"Calling mean_1h.py with range {start_datetime} to {end_datetime}")
     mean_1h.mean_1h(start_datetime, end_datetime)
 
 # Step 1: Read from config.ini file
 def read_config():
-    global DB_TABLE_HOUR
     # Load configuration from config.ini
     with open('config.ini', 'r', encoding='utf-8') as config_file:
         config = configparser.ConfigParser(interpolation=None)
@@ -49,10 +46,10 @@ def read_config():
         'host': config.get('SQL', 'host'),
         'port': config.get('SQL', 'port'),
         'database': config.get('SQL', 'database'),
-        'table_name': config.get('SQL', 'DB_TABLE_MIN')
+        'table_name': config.get('SQL', 'DB_TABLE_MIN'),
+        'hourly_table': config.get('SQL', 'mean_1hour_table')
     }
 
-    DB_TABLE_HOUR = config.get('SQL', 'mean_1hour_table')
     # Read FTP config
     csv_cols = [col.strip() for col in config.get('CSV', 'csv_col_names').split(',')]
     db_cols = [col.strip() for col in config.get('CSV', 'db_col_names').split(',')]
@@ -219,7 +216,6 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
             print(f"Error inserting data into the database: {e}")
 
 def main():
-    global DB_TABLE_HOUR
     try:
         # Read config
         db_config, ftp_config = read_config()
@@ -260,9 +256,10 @@ def main():
         logging.error(f"Error connecting to FTP server or downloading files: {e}")
         return
 
-    # Initialize time range for new data
+    # Initialize tracking for newly inserted minute data
     earliest_new_datetime = None
     latest_new_datetime = None
+    new_hours = set()
 
     # Process and insert each downloaded CSV file
     for csv_file in os.listdir(local_csv_folder):
@@ -301,14 +298,22 @@ def main():
                 print(f"No new data in file {csv_file}. Skipping.")
                 continue
 
-            # Track earliest and latest DateRef in the new data
+            # Track the time span and affected hours for the new data
             current_min = csv_data_filtered['DateRef'].min()
             current_max = csv_data_filtered['DateRef'].max()
             earliest_new_datetime = current_min if earliest_new_datetime is None else min(earliest_new_datetime, current_min)
             latest_new_datetime = current_max if latest_new_datetime is None else max(latest_new_datetime, current_max)
 
+            new_hours.update(csv_data_filtered['DateRef'].dt.floor('H'))
+
             # Insert the filtered data into the database
-            insert_data_into_db(engine, db_config['table_name'], csv_data_filtered, ftp_config['column_mapping'], ftp_config['db_col_names'])
+            insert_data_into_db(
+                engine,
+                db_config['table_name'],
+                csv_data_filtered,
+                ftp_config['column_mapping'],
+                ftp_config['db_col_names'],
+            )
         except Exception as e:
             logging.error(f"Error processing file {csv_file}: {e}")
             continue
@@ -320,16 +325,23 @@ def main():
     #         result = connection.execute(query).scalar()
     #     return result
     try:
-        last_record_hour = get_last_record_datetime(engine, DB_TABLE_HOUR)
-        if isinstance(last_record_hour, str):
-            last_record_hour = datetime.strptime(last_record_hour.strip(), '%Y-%m-%d %H:%M:%S')
-
-        if earliest_new_datetime is not None and latest_new_datetime is not None:
-            hourly_start = last_record_hour.replace(minute=0, second=0, microsecond=0)
-            hourly_end = latest_new_datetime.replace(minute=0, second=0, microsecond=0)
-            if hourly_start < hourly_end:
-                hourly_end = hourly_end - timedelta(hours=1)
-                call_mean_hourly(hourly_start, hourly_end)
+        if new_hours:
+            # Process only hours that have fully passed. For example, if data spans
+            # 11:00–12:10 at 12:10, compute only for 11:00; the 12:00 hour will
+            # be handled after it completes (at 13:00 or later).
+            boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
+            hourly_table = db_config['hourly_table']
+            for hour in sorted(new_hours):
+                hour_dt = hour.to_pydatetime() if hasattr(hour, 'to_pydatetime') else hour
+                if hour_dt < boundary_hour:
+                    mean_ref = hour_dt + timedelta(hours=1)
+                    with engine.connect() as conn:
+                        exists = conn.execute(
+                            text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
+                            {"dt": mean_ref}
+                        ).scalar()
+                    if not exists:
+                        call_mean_hourly(hour_dt, hour_dt)
         else:
             return "No new data inserted; skipping hourly mean calculation."
     except Exception as e:
