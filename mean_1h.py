@@ -196,7 +196,7 @@ def mean_1h(start_datetime, end_datetime):
             closeSQLconnection()
     else:
         hour_end = start_time + timedelta(hours=1)
-        if datetime.now() >= hour_end:
+        if datetime.now() > hour_end:
             result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
             if result == 'Exists_data_for_that_hour':
                 makeHourData()

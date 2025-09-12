@@ -1,1 +1,0 @@
-pyinstaller --noconfirm --onefile --windowed --name "MeteoScada" --add-data "C:\projects\Dushanci\Python\static;static/" --add-data "C:\projects\Dushanci\Python\templates;templates/" --add-data "C:\projects\Dushanci\Python\config.ini;."  "C:\projects\Dushanci\Python\app.py"
