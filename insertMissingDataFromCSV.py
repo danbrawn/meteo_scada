@@ -46,7 +46,8 @@ def read_config():
         'host': config.get('SQL', 'host'),
         'port': config.get('SQL', 'port'),
         'database': config.get('SQL', 'database'),
-        'table_name': config.get('SQL', 'DB_TABLE_MIN')
+        'table_name': config.get('SQL', 'DB_TABLE_MIN'),
+        'hourly_table': config.get('SQL', 'mean_1hour_table')
     }
 
     # Read FTP config
@@ -328,11 +329,19 @@ def main():
             # Process only hours that have fully passed. For example, if data spans
             # 11:00–12:10 at 12:10, compute only for 11:00; the 12:00 hour will
             # be handled after it completes (at 13:00 or later).
-            boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+            boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
+            hourly_table = db_config['hourly_table']
             for hour in sorted(new_hours):
                 hour_dt = hour.to_pydatetime() if hasattr(hour, 'to_pydatetime') else hour
-                if hour_dt <= boundary_hour:
-                    call_mean_hourly(hour_dt, hour_dt)
+                if hour_dt < boundary_hour:
+                    mean_ref = hour_dt + timedelta(hours=1)
+                    with engine.connect() as conn:
+                        exists = conn.execute(
+                            text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
+                            {"dt": mean_ref}
+                        ).scalar()
+                    if not exists:
+                        call_mean_hourly(hour_dt, hour_dt)
         else:
             return "No new data inserted; skipping hourly mean calculation."
     except Exception as e:
