@@ -659,9 +659,11 @@ def report_data_endpoint():
             )
 
         combined = combined.round(1)
-        combined = combined.astype(object).where(pd.notnull(combined), None)
 
-        result = {col: combined[col].tolist() for col in combined.columns}
+        def format_val(v):
+            return f"{v:.1f}".replace('.', ',') if pd.notnull(v) else None
+
+        result = {col: [format_val(v) for v in combined[col]] for col in combined.columns}
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in /report_data endpoint: {e}", exc_info=True)
@@ -836,6 +838,11 @@ def export_to_excel():
         # Write data
         for row_idx, (_, row) in enumerate(filtered_df.iterrows(), start=12):
             for col_idx, value in enumerate(row, start=2):
+                if isinstance(value, str):
+                    try:
+                        value = float(value.replace(',', '.'))
+                    except ValueError:
+                        pass
                 ws.cell(row=row_idx, column=col_idx, value=value)
 
         # Save and send file
@@ -893,6 +900,11 @@ def export2_to_excel():
         # Write data
         for row_idx, (_, row) in enumerate(filtered_df.iterrows(), start=12):
             for col_idx, value in enumerate(row, start=2):
+                if isinstance(value, str):
+                    try:
+                        value = float(value.replace(',', '.'))
+                    except ValueError:
+                        pass
                 ws.cell(row=row_idx, column=col_idx, value=value)
 
         # Save and send file
