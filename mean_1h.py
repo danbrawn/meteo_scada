@@ -138,6 +138,15 @@ def populateMean1hour():
         output_data[numeric_cols] = output_data[numeric_cols].apply(
             lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
         )
+        target_time = output_data.at[0, 'DateRef']
+        with engine.connect() as conn:
+            exists = conn.execute(
+                sa.text(f"SELECT 1 FROM {mean_1hour_table} WHERE DateRef = :dt LIMIT 1"),
+                {"dt": target_time}
+            ).scalar()
+        if exists:
+            print(f"Record for {target_time} already exists; skipping insert")
+            return
 
         # Now use to_sql() with your DataFrame
         output_data.to_sql(mean_1hour_table, con=engine, if_exists='append', index=False)
