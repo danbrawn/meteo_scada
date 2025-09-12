@@ -183,6 +183,10 @@ def mean_1h(start_datetime, end_datetime):
         time_difference_in_h = int(divmod(time_difference_in_s, 3600)[0])
         for day in range(1, time_difference_in_h + 1):  # Loop through each hour in the range
             start_time = start_time + timedelta(hours=1)
+            hour_end = start_time + timedelta(hours=1)
+            if datetime.now() < hour_end:
+                print(f"Hour starting at {start_time} not finished; skipping")
+                continue
             result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
             if result == 'No_data_for_that_hour':
                 populateMean1hour()
@@ -191,13 +195,17 @@ def mean_1h(start_datetime, end_datetime):
                 populateMean1hour()
             closeSQLconnection()
     else:
-        result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
-        if result == 'No_data_for_that_hour':
-            populateMean1hour()
-        elif result == 'Exists_data_for_that_hour':
-            makeHourData()
-            populateMean1hour()
-        closeSQLconnection()
+        hour_end = start_time + timedelta(hours=1)
+        if datetime.now() >= hour_end:
+            result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
+            if result == 'No_data_for_that_hour':
+                populateMean1hour()
+            elif result == 'Exists_data_for_that_hour':
+                makeHourData()
+                populateMean1hour()
+            closeSQLconnection()
+        else:
+            print(f"Hour starting at {start_time} not finished; skipping")
 
 
 #temp_date_str = '2024-07-01 09:00:00'
