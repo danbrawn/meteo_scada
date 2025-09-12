@@ -325,10 +325,13 @@ def main():
     #     return result
     try:
         if new_hours:
-            current_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
+            # Process only hours that have fully passed. For example, if data spans
+            # 11:00–12:10 at 12:10, compute only for 11:00; the 12:00 hour will
+            # be handled after it completes (at 13:00 or later).
+            boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
             for hour in sorted(new_hours):
                 hour_dt = hour.to_pydatetime() if hasattr(hour, 'to_pydatetime') else hour
-                if hour_dt < current_hour:
+                if hour_dt <= boundary_hour:
                     call_mean_hourly(hour_dt, hour_dt)
         else:
             return "No new data inserted; skipping hourly mean calculation."
