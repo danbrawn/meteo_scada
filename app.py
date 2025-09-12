@@ -598,18 +598,21 @@ def report_data_endpoint():
 
         df = pd.DataFrame(data, columns=[DATE_COLUMN] + cols)
         if df.empty:
+            logger.error(f"No data returned for {year}-{month} from {DB_TABLE}")
             return jsonify({})
-        # Convert numeric values and prepare index
-        if cols:
-            df[cols] = df[cols].apply(
-                lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
-            )
 
-        # Convert numeric values and prepare index
-        if cols:
-            df[cols] = df[cols].apply(
-                lambda s: pd.to_numeric(s.astype(str).str.replace(",", "."), errors="coerce")
-            )
+        # Convert numeric values and track columns that fail to parse
+        for c in cols:
+            raw = df[c].astype(str)
+            df[c] = pd.to_numeric(raw.str.replace(",", "."), errors="coerce")
+            if df[c].isna().all():
+                logger.error(
+                    "Column %s has no numeric data for %04d-%02d; sample raw values: %s",
+                    c,
+                    year,
+                    month,
+                    raw.head().tolist(),
+                )
 
         df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
         df.set_index(DATE_COLUMN, inplace=True)
@@ -659,9 +662,20 @@ def report_data_endpoint():
             )
 
         combined = combined.round(1)
-        combined = combined.astype(object).where(pd.notnull(combined), None)
 
-        result = {col: combined[col].tolist() for col in combined.columns}
+        for col in combined.columns:
+            if combined[col].isna().all():
+                logger.error(
+                    "No computed data for column %s in %04d-%02d after aggregation",
+                    col,
+                    year,
+                    month,
+                )
+
+        def format_val(v):
+            return f"{v:.1f}".replace('.', ',') if pd.notnull(v) else None
+
+        result = {col: [format_val(v) for v in combined[col]] for col in combined.columns}
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in /report_data endpoint: {e}", exc_info=True)
@@ -836,6 +850,11 @@ def export_to_excel():
         # Write data
         for row_idx, (_, row) in enumerate(filtered_df.iterrows(), start=12):
             for col_idx, value in enumerate(row, start=2):
+                if isinstance(value, str):
+                    try:
+                        value = float(value.replace(',', '.'))
+                    except ValueError:
+                        pass
                 ws.cell(row=row_idx, column=col_idx, value=value)
 
         # Save and send file
@@ -893,6 +912,11 @@ def export2_to_excel():
         # Write data
         for row_idx, (_, row) in enumerate(filtered_df.iterrows(), start=12):
             for col_idx, value in enumerate(row, start=2):
+                if isinstance(value, str):
+                    try:
+                        value = float(value.replace(',', '.'))
+                    except ValueError:
+                        pass
                 ws.cell(row=row_idx, column=col_idx, value=value)
 
         # Save and send file
