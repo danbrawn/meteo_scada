@@ -644,12 +644,12 @@ def report_data_endpoint():
 
         if "RAIN_MINUTE" in df.columns:
             combined = combined.join(
-                df["RAIN_MINUTE"].resample("D").sum().rename("RAIN")
+                df["RAIN_MINUTE"].resample("D").sum(min_count=1).rename("RAIN")
             )
 
         if "EVAPOR_MINUTE" in df.columns:
             combined = combined.join(
-                df["EVAPOR_MINUTE"].resample("D").sum().rename("EVAPOR_DAY")
+                df["EVAPOR_MINUTE"].resample("D").sum(min_count=1).rename("EVAPOR_DAY")
             )
 
         at_14_cols = [c for c in ["T_AIR", "REL_HUM", "P_REL"] if c in df.columns]
