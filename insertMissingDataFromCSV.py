@@ -324,16 +324,9 @@ def main():
                 latest_new_datetime.replace(minute=0, second=0, microsecond=0)
                 - timedelta(hours=1)
             )
-            hour = last_hour_record
-            while hour < last_complete_hour:
-                hour += timedelta(hours=1)
-                with engine.connect() as conn:
-                    has_mean = conn.execute(
-                        text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
-                        {"dt": hour}
-                    ).scalar()
-                if not has_mean:
-                    call_mean_hourly(hour, hour)
+            start_hour = last_hour_record + timedelta(hours=1)
+            if start_hour <= last_complete_hour:
+                call_mean_hourly(start_hour, last_complete_hour)
     except Exception as e:
         logging.error(f"Error calculating hourly mean: {e}")
         print(e)
