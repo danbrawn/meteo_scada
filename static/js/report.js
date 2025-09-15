@@ -27,11 +27,11 @@ $(document).ready(function() {
     $('#report-table thead').html(thead);
     let rows = params.map(p => {
       const values = data[p.key] || [];
-      const cells = days.map(d => {
-        const v = values[d-1];
-        const num = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
-        return `<td>${v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : ''}</td>`;
-      }).join('');
+        const cells = days.map(d => {
+          const v = values[d-1];
+          const num = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
+          return `<td>${v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: true }) : ''}</td>`;
+        }).join('');
       return `<tr><td class="sticky-col">${p.name}, ${p.unit}</td>${cells}</tr>`;
     }).join('');
     $('#report-table tbody').html(rows);
@@ -73,11 +73,11 @@ $(document).ready(function() {
     params.forEach(p => {
       const values = currentData[p.key] || [];
       const row = [`${p.name}, ${p.unit}`];
-      for (let i = 0; i < days.length; i++) {
-        const v = values[i];
-        const num = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
-        row.push(v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : '');
-      }
+        for (let i = 0; i < days.length; i++) {
+          const v = values[i];
+          const num = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
+          row.push(v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: true }) : '');
+        }
         csv.push(row.join(';'));
     });
     const csvContent = csv.join('\n');
