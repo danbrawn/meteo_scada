@@ -325,7 +325,7 @@ def main():
                 current_hour = last_record_hour_minus_one
             else:
                 current_hour = last_hour_record.replace(minute=0, second=0, microsecond=0)
-            while current_hour <= last_record_hour_minus_one:
+            while current_hour < last_record_hour_minus_one:
                 call_mean_hourly(current_hour, current_hour)
                 current_hour += timedelta(hours=1)
     except Exception as e:
