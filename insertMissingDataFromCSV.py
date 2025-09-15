@@ -318,42 +318,19 @@ def main():
             logging.error(f"Error processing file {csv_file}: {e}")
             continue
 
-    # # Step 3: Find the last record in the DB
-    # def get_last_record_datetime(engine, table_name):
-    #     query = text(f"SELECT MAX(`DateRef`) FROM {table_name}")
-    #     with engine.connect() as connection:
-    #         result = connection.execute(query).scalar()
-    #     return result
     try:
-        boundary_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
         hourly_table = db_config['hourly_table']
-        raw_table = db_config['table_name']
-        last_hourly_dt = get_last_record_datetime(engine, hourly_table)
-        start_hour = (
-            last_hourly_dt
-            if last_hourly_dt is not None
-            else (earliest_new_datetime.floor('H') if earliest_new_datetime is not None else None)
-        )
-        if start_hour is None:
-            return "No new data inserted; skipping hourly mean calculation."
-        current_hour = start_hour
-        while current_hour < boundary_hour:
-            hour_end = current_hour + timedelta(hours=1)
+        for hour in sorted(new_hours):
+            prev_hour_end = hour
+            if prev_hour_end > datetime.now().replace(minute=0, second=0, microsecond=0):
+                continue
             with engine.connect() as conn:
-                has_raw = conn.execute(
-                    text(
-                        f"SELECT 1 FROM {raw_table} "
-                        "WHERE DateRef >= :start AND DateRef < :end LIMIT 1"
-                    ),
-                    {"start": current_hour, "end": hour_end}
-                ).scalar()
                 has_mean = conn.execute(
                     text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
-                    {"dt": hour_end}
+                    {"dt": prev_hour_end}
                 ).scalar()
-            if has_raw and not has_mean:
-                call_mean_hourly(current_hour, current_hour)
-            current_hour = hour_end
+            if not has_mean:
+                call_mean_hourly(hour - timedelta(hours=1), hour - timedelta(hours=1))
     except Exception as e:
         logging.error(f"Error calculating hourly mean: {e}")
         print(e)
