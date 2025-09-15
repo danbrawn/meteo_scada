@@ -644,12 +644,12 @@ def report_data_endpoint():
 
         if "RAIN_MINUTE" in df.columns:
             combined = combined.join(
-                df["RAIN_MINUTE"].resample("D").sum().rename("RAIN")
+                df["RAIN_MINUTE"].resample("D").sum(min_count=1).rename("RAIN")
             )
 
         if "EVAPOR_MINUTE" in df.columns:
             combined = combined.join(
-                df["EVAPOR_MINUTE"].resample("D").sum().rename("EVAPOR_DAY")
+                df["EVAPOR_MINUTE"].resample("D").sum(min_count=1).rename("EVAPOR_DAY")
             )
 
         at_14_cols = [c for c in ["T_AIR", "REL_HUM", "P_REL"] if c in df.columns]
@@ -663,6 +663,12 @@ def report_data_endpoint():
 
         combined = combined.round(1)
 
+        now = datetime.now()
+        if year == now.year and month == now.month:
+            today = now.date()
+            if today in combined.index:
+                combined.loc[today] = np.nan
+
         for col in combined.columns:
             if combined[col].isna().all():
                 logger.error(
@@ -672,10 +678,10 @@ def report_data_endpoint():
                     month,
                 )
 
-        def format_val(v):
-            return f"{v:.1f}".replace('.', ',') if pd.notnull(v) else None
-
-        result = {col: [format_val(v) for v in combined[col]] for col in combined.columns}
+        result = {
+            col: [None if pd.isna(v) else float(v) for v in combined[col]]
+            for col in combined.columns
+        }
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in /report_data endpoint: {e}", exc_info=True)
