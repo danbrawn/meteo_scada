@@ -316,17 +316,18 @@ def main():
     try:
         hourly_table = db_config['hourly_table']
         last_hour_record = get_last_record_datetime(engine, hourly_table)
-        if last_hour_record is None:
-            last_hour_record = datetime.min
-        last_hour_record = last_hour_record.replace(minute=0, second=0, microsecond=0)
         if latest_new_datetime is not None:
-            last_complete_hour = (
+            last_record_hour_minus_one = (
                 latest_new_datetime.replace(minute=0, second=0, microsecond=0)
                 - timedelta(hours=1)
             )
-            start_hour = last_hour_record + timedelta(hours=1)
-            if start_hour <= last_complete_hour:
-                call_mean_hourly(start_hour, last_complete_hour)
+            if last_hour_record is None:
+                current_hour = last_record_hour_minus_one
+            else:
+                current_hour = last_hour_record.replace(minute=0, second=0, microsecond=0)
+            while current_hour <= last_record_hour_minus_one:
+                call_mean_hourly(current_hour, current_hour)
+                current_hour += timedelta(hours=1)
     except Exception as e:
         logging.error(f"Error calculating hourly mean: {e}")
         print(e)
