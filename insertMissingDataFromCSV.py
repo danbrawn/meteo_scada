@@ -256,10 +256,8 @@ def main():
         logging.error(f"Error connecting to FTP server or downloading files: {e}")
         return
 
-    # Initialize tracking for newly inserted minute data
-    earliest_new_datetime = None
+    # Track the latest timestamp from newly inserted minute data
     latest_new_datetime = None
-    new_hours = set()
 
     # Process and insert each downloaded CSV file
     for csv_file in os.listdir(local_csv_folder):
@@ -298,13 +296,10 @@ def main():
                 print(f"No new data in file {csv_file}. Skipping.")
                 continue
 
-            # Track the time span and affected hours for the new data
-            current_min = csv_data_filtered['DateRef'].min()
+            # Track the latest timestamp for the new data
             current_max = csv_data_filtered['DateRef'].max()
-            earliest_new_datetime = current_min if earliest_new_datetime is None else min(earliest_new_datetime, current_min)
-            latest_new_datetime = current_max if latest_new_datetime is None else max(latest_new_datetime, current_max)
-
-            new_hours.update(csv_data_filtered['DateRef'].dt.floor('H'))
+            if latest_new_datetime is None or current_max > latest_new_datetime:
+                latest_new_datetime = current_max
 
             # Insert the filtered data into the database
             insert_data_into_db(
@@ -320,17 +315,25 @@ def main():
 
     try:
         hourly_table = db_config['hourly_table']
-        for hour in sorted(new_hours):
-            prev_hour_end = hour
-            if prev_hour_end > datetime.now().replace(minute=0, second=0, microsecond=0):
-                continue
-            with engine.connect() as conn:
-                has_mean = conn.execute(
-                    text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
-                    {"dt": prev_hour_end}
-                ).scalar()
-            if not has_mean:
-                call_mean_hourly(hour - timedelta(hours=1), hour - timedelta(hours=1))
+        last_hour_record = get_last_record_datetime(engine, hourly_table)
+        if last_hour_record is None:
+            last_hour_record = datetime.min
+        last_hour_record = last_hour_record.replace(minute=0, second=0, microsecond=0)
+        if latest_new_datetime is not None:
+            last_complete_hour = (
+                latest_new_datetime.replace(minute=0, second=0, microsecond=0)
+                - timedelta(hours=1)
+            )
+            hour = last_hour_record
+            while hour < last_complete_hour:
+                hour += timedelta(hours=1)
+                with engine.connect() as conn:
+                    has_mean = conn.execute(
+                        text(f"SELECT 1 FROM {hourly_table} WHERE DateRef = :dt LIMIT 1"),
+                        {"dt": hour}
+                    ).scalar()
+                if not has_mean:
+                    call_mean_hourly(hour, hour)
     except Exception as e:
         logging.error(f"Error calculating hourly mean: {e}")
         print(e)
