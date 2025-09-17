@@ -156,6 +156,44 @@ $(document).ready(function () {
 
     }
 
+    function updateAlarmBanner(alarms, ftpOk) {
+        const banner = $('#alarm-banner');
+        const messagesContainer = $('#alarm-messages');
+        const messages = [];
+
+        if (Array.isArray(alarms)) {
+            alarms.forEach(alarm => {
+                if (!alarm) return;
+                const name = alarm.name || alarm.column || '';
+                const description = alarm.description || '';
+                const parts = [];
+                if (name) {
+                    parts.push(name);
+                }
+                if (description && description !== name) {
+                    parts.push(description);
+                }
+                const text = parts.join(' - ').trim();
+                if (text) {
+                    messages.push(text);
+                }
+            });
+        }
+
+        if (ftpOk === false) {
+            messages.push('Връзка с контролера - нарушена');
+        }
+
+        if (messages.length) {
+            const html = messages.map(msg => `<div class="alarm-message">${msg}</div>`).join('');
+            messagesContainer.html(html);
+            banner.removeClass('hidden');
+        } else {
+            messagesContainer.empty();
+            banner.addClass('hidden');
+        }
+    }
+
     function fetchMomentData() {
         $.ajax({
             type: 'GET',
@@ -166,6 +204,7 @@ $(document).ready(function () {
                     console.error("Error in API response:", response.error);
                     return;
                 }
+                updateAlarmBanner(response.alarms, response.ftp_connection_ok);
                 if (response.min_values_data && response.min_values_data.length > 0) {
                     renderDashboard(
                         response.min_values_data[0],

@@ -1,6 +1,7 @@
 import subprocess
 import sys
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -27,9 +28,11 @@ from flask import (
     got_request_exception,
 )
 import pymysql
+from pymysql.cursors import DictCursor
 import configparser
 import openpyxl
 from functools import wraps
+from typing import Dict, List
 
 import insertMissingDataFromCSV
 from logging import FileHandler, WARNING
@@ -96,6 +99,36 @@ DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
 # Variable to store the path of the saved plot image
 plot_image_path = 'plot.png'
 
+
+def _get_config_list(section: str, option: str) -> List[str]:
+    if not config.has_section(section) or not config.has_option(section, option):
+        return []
+    return [item.strip() for item in config.get(section, option).split(',') if item.strip()]
+
+
+ALARM_TABLE = None
+ALARM_DATE_COLUMN = DATE_COLUMN
+ALARM_COLUMNS: List[str] = []
+ALARM_COLUMN_LABELS: Dict[str, str] = {}
+ALARM_COLUMN_DESCRIPTIONS: Dict[str, str] = {}
+
+if config.has_section('ALARMS'):
+    ALARM_TABLE = config.get('ALARMS', 'table', fallback=None)
+    ALARM_DATE_COLUMN = config.get('ALARMS', 'date_column', fallback=DATE_COLUMN)
+    ALARM_COLUMNS = _get_config_list('ALARMS', 'columns')
+    alarm_column_names = _get_config_list('ALARMS', 'columns_names')
+    alarm_column_descriptions = _get_config_list('ALARMS', 'columns_descriptions')
+
+    for idx, column in enumerate(ALARM_COLUMNS):
+        label = alarm_column_names[idx] if idx < len(alarm_column_names) else column
+        description = (
+            alarm_column_descriptions[idx]
+            if idx < len(alarm_column_descriptions)
+            else label
+        )
+        ALARM_COLUMN_LABELS[column] = label
+        ALARM_COLUMN_DESCRIPTIONS[column] = description
+
 global my_df
 my_df = pd.DataFrame(columns=[DATE_COLUMN] + DATA_COLUMNS)
 # Global dataframe to store the required data
@@ -104,6 +137,7 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy().sort_index()
     if 'RAIN_MINUTE' in df.columns:
         df['RAIN_MINUTE'] = pd.to_numeric(df['RAIN_MINUTE'], errors='coerce')
+        df['RAIN_HOUR'] = df.groupby(df.index.to_period('H'))['RAIN_MINUTE'].cumsum()
         df['RAIN_DAY'] = df.groupby(df.index.date)['RAIN_MINUTE'].cumsum()
         df['RAIN_MONTH'] = df.groupby(df.index.to_period('M'))['RAIN_MINUTE'].cumsum()
         df['RAIN_YEAR'] = df.groupby(df.index.year)['RAIN_MINUTE'].cumsum()
@@ -114,6 +148,83 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
 # Function to establish a connection to the MySQL database
 def get_db_connection():
     return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME, port=DB_PORT)
+
+
+def _is_alarm_active(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return float(value) != 0.0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {'', '0', 'false', 'inactive', 'не'}:
+            return False
+        return True
+    return bool(value)
+
+
+def get_active_alarms():
+    if not ALARM_TABLE or not ALARM_COLUMNS:
+        return {'timestamp': None, 'items': []}
+
+    db_connection = None
+    cursor = None
+    try:
+        db_connection = get_db_connection()
+        cursor = db_connection.cursor(DictCursor)
+        selected_columns = list(dict.fromkeys([ALARM_DATE_COLUMN] + ALARM_COLUMNS))
+        columns_clause = ', '.join(selected_columns)
+        query = (
+            f"SELECT {columns_clause} FROM {ALARM_TABLE} "
+            f"ORDER BY {ALARM_DATE_COLUMN} DESC LIMIT 1"
+        )
+        cursor.execute(query)
+        result = cursor.fetchone()
+    except Exception as exc:
+        logger.error(f"Error fetching alarms: {exc}", exc_info=True)
+        return {'timestamp': None, 'items': []}
+    finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if db_connection is not None:
+            try:
+                db_connection.close()
+            except Exception:
+                pass
+
+    if not result:
+        return {'timestamp': None, 'items': []}
+
+    timestamp = result.get(ALARM_DATE_COLUMN)
+    items = []
+    for column in ALARM_COLUMNS:
+        value = result.get(column)
+        if _is_alarm_active(value):
+            processed_value = value
+            if isinstance(value, Decimal):
+                processed_value = float(value)
+            elif isinstance(value, np.generic):
+                processed_value = value.item()
+            elif isinstance(value, datetime):
+                processed_value = value.strftime('%Y-%m-%dT%H:%M:%S')
+            items.append(
+                {
+                    'column': column,
+                    'name': ALARM_COLUMN_LABELS.get(column, column),
+                    'description': ALARM_COLUMN_DESCRIPTIONS.get(column, column),
+                    'value': processed_value,
+                }
+            )
+
+    if isinstance(timestamp, datetime):
+        timestamp_str = timestamp.strftime('%Y-%m-%dT%H:%M:%S')
+    else:
+        timestamp_str = str(timestamp) if timestamp else None
+
+    return {'timestamp': timestamp_str, 'items': items}
 
 #INitialize plot
 
@@ -146,6 +257,7 @@ def update_dataframes():
     while True:
         try:
             db_connection = get_db_connection()
+            cursor = None
             try:
                 cursor = db_connection.cursor()
                 query_last_minute = f"""
@@ -168,12 +280,44 @@ def update_dataframes():
                     df_last_min_data.set_index(DATE_COLUMN, inplace=True)
                     df_last_min_data = add_calculated_columns(df_last_min_data)
 
+                    if 'RAIN_MINUTE' in df_last_min_data.columns and not df_last_min_data.empty:
+                        last_timestamp = df_last_min_data.index[-1]
+                        if pd.notna(last_timestamp):
+                            end_time = last_timestamp.to_pydatetime()
+                            sum_ranges = {
+                                'RAIN_HOUR': end_time.replace(minute=0, second=0, microsecond=0),
+                                'RAIN_DAY': end_time.replace(hour=0, minute=0, second=0, microsecond=0),
+                                'RAIN_MONTH': end_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+                                'RAIN_YEAR': end_time.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0),
+                            }
+                            sum_query = (
+                                f"SELECT SUM(RAIN_MINUTE) FROM {DB_TABLE_MIN} "
+                                f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s"
+                            )
+                            for column, start_time in sum_ranges.items():
+                                try:
+                                    cursor.execute(sum_query, (start_time, end_time))
+                                    sum_result = cursor.fetchone()
+                                    total = sum_result[0] if sum_result and sum_result[0] is not None else 0.0
+                                except Exception as exc:
+                                    logger.error(
+                                        f"Error calculating {column}: {exc}",
+                                        exc_info=True,
+                                    )
+                                    total = 0.0
+                                df_last_min_data.loc[last_timestamp, column] = float(total)
+
                 if not df_last_min_data.empty:
                     df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
                     df_last_min_values.reset_index(inplace=True)
-                    df_last_min_values = df_last_min_values.round(1)
+                    numeric_columns = df_last_min_values.select_dtypes(include=[np.number]).columns
+                    df_last_min_values[numeric_columns] = df_last_min_values[numeric_columns].round(1)
             finally:
-                cursor.close()
+                if cursor is not None:
+                    try:
+                        cursor.close()
+                    except Exception:
+                        pass
                 db_connection.close()
         except Exception as e:
             logger.error(f"Error updating dataframes: {e}", exc_info=True)
@@ -988,11 +1132,19 @@ def moment_data():
         for record in min_values_data:
             format_date(record)
 
+        alarms_info = get_active_alarms()
+        ftp_status = getattr(insertMissingDataFromCSV, 'last_ftp_status', None)
+        if isinstance(ftp_status, np.bool_):
+            ftp_status = bool(ftp_status)
+
         return jsonify({
             "min_values_data": min_values_data,
             "columns_values": DATA_COLUMNS,
             "columns_bg": DATA_COLUMNS_BG,
             "columns_units": DATA_COLUMNS_UNITS,
+            "alarms": alarms_info.get('items', []),
+            "alarms_timestamp": alarms_info.get('timestamp'),
+            "ftp_connection_ok": ftp_status,
         })
 
     except Exception as e:
