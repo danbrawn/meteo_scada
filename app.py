@@ -562,6 +562,8 @@ def report_data_endpoint():
     """Return daily statistics for a given month and year."""
     year = request.args.get('year', type=int)
     month = request.args.get('month', type=int)
+
+    today_day = datetime.today().day
     if not year or not month:
         return jsonify({})
     try:
@@ -589,9 +591,10 @@ def report_data_endpoint():
         query = (
             f"SELECT {DATE_COLUMN}, {', '.join(cols)} FROM {DB_TABLE} "
             f"WHERE YEAR({DATE_COLUMN}) = %s AND MONTH({DATE_COLUMN}) = %s "
+            f"AND DAY({DATE_COLUMN}) < %s "
             f"ORDER BY {DATE_COLUMN} ASC"
         )
-        cursor.execute(query, (year, month))
+        cursor.execute(query, (year, month, today_day))
         data = cursor.fetchall()
         cursor.close()
         db_connection.close()
