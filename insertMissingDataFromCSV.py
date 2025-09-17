@@ -28,6 +28,10 @@ logger.addHandler(file_handler)
 
 file_handler = FileHandler('errorlog.txt')
 file_handler.setLevel(WARNING)
+
+last_ftp_status = None
+last_ftp_error = None
+last_ftp_check = None
 def call_mean_hourly(start_datetime, end_datetime):
     print(f"Calling mean_1h.py with range {start_datetime} to {end_datetime}")
     mean_1h.mean_1h(start_datetime, end_datetime)
@@ -89,11 +93,15 @@ def get_last_record_datetime(engine, table_name):
 
 # Step 4: Connect to the FTP server and fetch the list of files
 def connect_ftp(ftp_config):
+    global last_ftp_status, last_ftp_error, last_ftp_check
     ftp = FTP()
     ftp.connect(ftp_config['ftp_host'], int(ftp_config['ftp_port']))
     ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
     ftp.set_pasv(True)  # Force Passive Mode
     print("FTP connection successful")
+    last_ftp_status = True
+    last_ftp_error = None
+    last_ftp_check = datetime.now()
     return ftp
 
 
@@ -253,6 +261,10 @@ def main():
         ftp = connect_ftp(ftp_config)
         download_csv_files(ftp, last_record_date, ftp_config['remote_csv_path'], local_csv_folder, ftp_config)
     except Exception as e:
+        global last_ftp_status, last_ftp_error, last_ftp_check
+        last_ftp_status = False
+        last_ftp_error = str(e)
+        last_ftp_check = datetime.now()
         logging.error(f"Error connecting to FTP server or downloading files: {e}")
         return
 
