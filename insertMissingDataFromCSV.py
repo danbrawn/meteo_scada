@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import configparser
 from datetime import datetime,timedelta
-from ftplib import FTP
+from ftplib import FTP, error_perm
 import sqlalchemy as sa
 from sqlalchemy.sql import text
 import mean_1h
@@ -28,6 +28,10 @@ logger.addHandler(file_handler)
 
 file_handler = FileHandler('errorlog.txt')
 file_handler.setLevel(WARNING)
+
+last_ftp_status = None
+last_ftp_error = None
+last_ftp_check = None
 def call_mean_hourly(start_datetime, end_datetime):
     print(f"Calling mean_1h.py with range {start_datetime} to {end_datetime}")
     mean_1h.mean_1h(start_datetime, end_datetime)
@@ -89,69 +93,81 @@ def get_last_record_datetime(engine, table_name):
 
 # Step 4: Connect to the FTP server and fetch the list of files
 def connect_ftp(ftp_config):
+    global last_ftp_status, last_ftp_error, last_ftp_check
     ftp = FTP()
     ftp.connect(ftp_config['ftp_host'], int(ftp_config['ftp_port']))
     ftp.login(ftp_config['ftp_username'], ftp_config['ftp_password'])
     ftp.set_pasv(True)  # Force Passive Mode
     print("FTP connection successful")
+    last_ftp_status = True
+    last_ftp_error = None
+    last_ftp_check = datetime.now()
     return ftp
 
 
 # Step 5: Download CSV files from FTP server
 def download_csv_files(ftp, last_date_str, remote_csv_path, local_folder, ftp_config):
 
-    current_date = datetime.now()
+    current_datetime = datetime.now()
 
-    # Convert last_date_str to datetime object
-    #last_date = datetime.strptime(last_date_str, '%Y-%m-%d %H:%M:%S')
     try:
         if isinstance(last_date_str, str):
             last_date = datetime.strptime(last_date_str.strip(), '%Y-%m-%d %H:%M:%S')
         else:
             last_date = last_date_str
-        #last_date = datetime.strptime(last_date_str.strip(), '%Y-%m-%d %H:%M:%S')
-    except ValueError as e:
+    except (TypeError, ValueError) as e:
         print(f"Error parsing last_record_datetime: {e}")
+        ftp.quit()
         return
-    # Extract year from last_date
-    last_year = last_date.year
 
-    # Construct remote path for the year of the last record
-    year_folder = f"{last_year}"
-    remote_year_path = f"{remote_csv_path}/{year_folder}"
+    if last_date is None:
+        start_date = current_datetime.date()
+    else:
+        start_date = last_date.date()
 
-    try:
-        ftp.cwd(remote_year_path)
-        months = ftp.nlst()
+    end_date = current_datetime.date()
 
-        # Iterate through months and download files
-        for month_folder in months:
-            try:
-                ftp.cwd(month_folder)
-                files = ftp.nlst()
+    if start_date > end_date:
+        start_date = end_date
 
-                for file_name in files:
-                    if file_name.startswith(ftp_config['csv_template_name']) and file_name.endswith('.csv'):
-                        try:
-                            date_str = file_name.replace(ftp_config['csv_template_name'], '').replace('.csv', '')
-                            file_date = datetime.strptime(date_str, '%Y_%m_%d')
-                            file_date_end = datetime.combine(file_date, datetime.max.time())
-                            # Include records from last_date (inclusive) up to current_date
-                            if last_date <= file_date_end or last_date <= current_date :
-                                local_file = os.path.join(local_folder, file_name)
-                                with open(local_file, 'wb') as f:
-                                    ftp.retrbinary(f"RETR {file_name}", f.write)
-                                print(f"Downloaded: {file_name}")
-                        except ValueError as ve:
-                            print(f"Date parsing error for file {file_name}: {ve}")
+    remote_base_path = remote_csv_path.rstrip('/')
 
-            except Exception as e:
-                print(f"Failed to process month folder {month_folder}: {e}")
-            finally:
-                ftp.cwd("..")
+    target_date = start_date
+    while target_date <= end_date:
+        year_folder = f"{target_date.year}"
+        month_folder = target_date.strftime('%m')
+        remote_dir = f"{remote_base_path}/{year_folder}/{month_folder}"
+        file_name = (
+            f"{ftp_config['csv_template_name']}{target_date.strftime('%Y_%m_%d')}.csv"
+        )
 
-    except Exception as e:
-        print(f"Failed to process year folder {year_folder}: {e}")
+        try:
+            ftp.cwd(remote_dir)
+        except error_perm as e:
+            print(f"Remote directory missing for {target_date}: {remote_dir} ({e})")
+            target_date += timedelta(days=1)
+            continue
+        except Exception as e:
+            print(f"Failed to change directory to {remote_dir}: {e}")
+            target_date += timedelta(days=1)
+            continue
+
+        local_file = os.path.join(local_folder, file_name)
+
+        try:
+            with open(local_file, 'wb') as f:
+                ftp.retrbinary(f"RETR {file_name}", f.write)
+            print(f"Downloaded: {file_name}")
+        except error_perm as e:
+            print(f"File not found for {target_date}: {file_name} ({e})")
+            if os.path.exists(local_file):
+                os.remove(local_file)
+        except Exception as e:
+            print(f"Failed to download {file_name}: {e}")
+            if os.path.exists(local_file):
+                os.remove(local_file)
+
+        target_date += timedelta(days=1)
 
     ftp.quit()
 
@@ -238,8 +254,8 @@ def main():
         return
 
     if last_record_date is None:
-        print("No records in the database. Processing all CSV files.")
-        last_record_date = datetime.min
+        print("No records in the database. Downloading recent CSV files only.")
+        last_record_date = datetime.now() - timedelta(days=1)
     else:
         print(f"Last record date in the DB: {last_record_date}")
 
@@ -253,6 +269,10 @@ def main():
         ftp = connect_ftp(ftp_config)
         download_csv_files(ftp, last_record_date, ftp_config['remote_csv_path'], local_csv_folder, ftp_config)
     except Exception as e:
+        global last_ftp_status, last_ftp_error, last_ftp_check
+        last_ftp_status = False
+        last_ftp_error = str(e)
+        last_ftp_check = datetime.now()
         logging.error(f"Error connecting to FTP server or downloading files: {e}")
         return
 

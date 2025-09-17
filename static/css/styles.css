@@ -9,6 +9,7 @@ body {
   background-size: cover;
   background-attachment: fixed;
   background-repeat: no-repeat;
+  padding-bottom: 90px;
 }
 
 /* Banner section */
@@ -61,6 +62,10 @@ body {
 
 .logout-btn:hover {
   background-color: #3b8e63;
+}
+
+.hidden {
+  display: none !important;
 }
 
 /* Container Styling */
@@ -198,6 +203,44 @@ body {
     #statistics-container {
         grid-template-columns: 1fr;
     }
+}
+
+.alarm-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(178, 34, 34, 0.95);
+  color: #fff;
+  padding: 12px 20px;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.alarm-title {
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.alarm-messages {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.alarm-message {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-weight: 600;
+  text-align: center;
 }
 
 #statistics-container .dashboard-card,
