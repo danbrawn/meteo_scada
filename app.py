@@ -754,7 +754,7 @@ def _build_stats(period: str):
     evap_series = df['EVAPOR_MINUTE'].dropna()
     if not evap_series.empty:
         evap_value = float(evap_series.iloc[-1])
-        label = "Изпарение за деня" if period == 'today' else "Изпарение"
+        label = "Изпарение" if period == 'today' else "Изпарение"
         unit = "mm" if period == 'today' else "mm/day"
         result.append({
             "label": label,
