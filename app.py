@@ -283,25 +283,27 @@ def update_dataframes():
                         last_timestamp = df_last_min_data.index[-1]
                         if pd.notna(last_timestamp):
                             end_time = last_timestamp.to_pydatetime()
-                            completed_hour_end = end_time.replace(minute=0, second=0, microsecond=0)
+                            hour_start = end_time.replace(minute=0, second=0, microsecond=0)
 
-                            rain_hour_total = 0.0
+                            rain_hour_average = 0.0
                             try:
-                                cursor.execute(
-                                    f"SELECT RAIN_HOUR FROM {DB_TABLE} "
-                                    f"WHERE {DATE_COLUMN} = %s ORDER BY {DATE_COLUMN} DESC LIMIT 1",
-                                    (completed_hour_end,),
+                                avg_query = (
+                                    f"SELECT AVG(RAIN_MINUTE) FROM {DB_TABLE_MIN} "
+                                    f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s"
                                 )
-                                hour_result = cursor.fetchone()
-                                if hour_result and hour_result[0] is not None:
-                                    rain_hour_total = float(hour_result[0])
+                                cursor.execute(avg_query, (hour_start, end_time))
+                                avg_result = cursor.fetchone()
+                                if avg_result and avg_result[0] is not None:
+                                    rain_hour_average = float(avg_result[0])
                             except Exception as exc:
                                 logger.error(
-                                    f"Error fetching hourly rainfall: {exc}",
+                                    f"Error calculating RAIN_HOUR average: {exc}",
                                     exc_info=True,
                                 )
-                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_total
 
+                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_average
+
+                            completed_hour_end = hour_start
                             sum_ranges = {
                                 'RAIN_DAY': completed_hour_end.replace(hour=0),
                                 'RAIN_MONTH': completed_hour_end.replace(day=1, hour=0),
@@ -310,32 +312,14 @@ def update_dataframes():
                             sum_query = (
                                 f"SELECT COALESCE(SUM(RAIN_HOUR), 0) FROM {DB_TABLE} "
                                 f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
-                            )
-                            try:
-                                cursor.execute(avg_query, (hour_start, end_time))
-                                avg_result = cursor.fetchone()
-                                if avg_result and avg_result[0] is not None:
-                                    rain_hour_value = float(avg_result[0])
-                                else:
-                                    rain_hour_value = 0.0
-                            except Exception as exc:
-                                logger.error(
-                                    f"Error calculating RAIN_HOUR average: {exc}",
-                                    exc_info=True,
-                                )
-                                rain_hour_value = 0.0
-                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_value
 
-                            sum_query = (
-                                f"SELECT COALESCE(SUM(RAIN_MINUTE), 0) FROM {DB_TABLE} "
-                                f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
                             )
 
                             def _completed_sum(start_boundary: datetime) -> float:
                                 try:
                                     cursor.execute(sum_query, (start_time, completed_hour_end))
                                     sum_result = cursor.fetchone()
-                                    total = (
+                                    completed_total = (
                                         float(sum_result[0])
                                         if sum_result and sum_result[0] is not None
                                         else 0.0
@@ -345,8 +329,8 @@ def update_dataframes():
                                         f"Error calculating rainfall total from {start_boundary}: {exc}",
                                         exc_info=True,
                                     )
-                                    total = 0.0
-                                df_last_min_data.loc[last_timestamp, column] = total
+                                    completed_total = 0.0
+                                df_last_min_data.loc[last_timestamp, column] = completed_total + rain_hour_average
 
                 if not df_last_min_data.empty:
                     df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
@@ -473,7 +457,6 @@ def graph_data():
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
             if 'RAIN_MINUTE' in df.columns:
                 df_res['RAIN_MINUTE'] = df['RAIN_MINUTE'].resample('h').sum(min_count=1)
-
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
             if 'WIND_DIR' in df.columns:
