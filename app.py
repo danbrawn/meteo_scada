@@ -303,7 +303,6 @@ def update_dataframes():
                                 )
 
                             df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_total
-
                             sum_ranges = {
                                 'RAIN_DAY': completed_hour_end.replace(hour=0),
                                 'RAIN_MONTH': completed_hour_end.replace(day=1, hour=0),
@@ -313,7 +312,8 @@ def update_dataframes():
                                 f"SELECT COALESCE(SUM(RAIN), 0) FROM {DB_TABLE} "
                                 f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
                             )
-                            for column, start_time in sum_ranges.items():
+
+                            def _completed_sum(start_boundary: datetime) -> float:
                                 try:
                                     cursor.execute(sum_query, (start_time, completed_hour_end))
                                     sum_result = cursor.fetchone()
@@ -324,7 +324,7 @@ def update_dataframes():
                                     )
                                 except Exception as exc:
                                     logger.error(
-                                        f"Error calculating {column}: {exc}",
+                                        f"Error calculating rainfall total from {start_boundary}: {exc}",
                                         exc_info=True,
                                     )
                                     completed_total = 0.0
@@ -717,7 +717,7 @@ def _build_stats(period: str):
     if rain_total:
         label = "Сума валежи за деня" if period == 'today' else "Сума валежи"
         result.append({
-            "label": label,
+            "label": "Сума валежи",
             "value": f"{format_number(rain_total)} mm",
         })
 
