@@ -32,6 +32,7 @@ from pymysql.cursors import DictCursor
 import configparser
 import openpyxl
 from functools import wraps
+from contextlib import closing
 from typing import Dict, List
 
 import insertMissingDataFromCSV
@@ -250,107 +251,130 @@ TZ = pytz.timezone("Europe/Sofia")  # Adjust timezone as needed
 
 init = 0
 
+def _fetch_last_minute_data(cursor) -> pd.DataFrame:
+    query_last_minute = f"""
+        SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
+        FROM {DB_TABLE_MIN}
+        ORDER BY {DATE_COLUMN} DESC LIMIT 1
+    """
+    cursor.execute(query_last_minute)
+    last_minute_data = cursor.fetchall()
+
+    df_last_min_data = pd.DataFrame(
+        last_minute_data,
+        columns=[DATE_COLUMN] + RAW_DATA_COLUMNS,
+    )
+
+    if df_last_min_data.empty:
+        return df_last_min_data
+
+    df_last_min_data[RAW_DATA_COLUMNS] = df_last_min_data[RAW_DATA_COLUMNS].apply(
+        pd.to_numeric, errors='coerce'
+    )
+    df_last_min_data[DATE_COLUMN] = pd.to_datetime(df_last_min_data[DATE_COLUMN])
+    df_last_min_data.set_index(DATE_COLUMN, inplace=True)
+    return add_calculated_columns(df_last_min_data)
+
+
+def _set_rainfall_totals(cursor, df_last_min_data: pd.DataFrame) -> pd.DataFrame:
+    if 'RAIN' not in df_last_min_data.columns or df_last_min_data.empty:
+        return df_last_min_data
+
+    last_timestamp = df_last_min_data.index[-1]
+    if pd.isna(last_timestamp):
+        return df_last_min_data
+
+    completed_hour_end = last_timestamp.to_pydatetime().replace(
+        minute=0, second=0, microsecond=0
+    )
+
+    last_hour_query = (
+        f"SELECT RAIN FROM {DB_TABLE} "
+        f"WHERE {DATE_COLUMN} <= %s ORDER BY {DATE_COLUMN} DESC LIMIT 1"
+    )
+
+    try:
+        cursor.execute(last_hour_query, (completed_hour_end,))
+        last_hour_result = cursor.fetchone()
+        rain_hour_total = (
+            float(last_hour_result[0])
+            if last_hour_result and last_hour_result[0] is not None
+            else 0.0
+        )
+    except Exception as exc:
+        logger.error(
+            f"Error fetching previous hour rainfall: {exc}",
+            exc_info=True,
+        )
+        rain_hour_total = 0.0
+
+    df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_total
+
+    sum_query = (
+        f"SELECT COALESCE(SUM(RAIN), 0) FROM {DB_TABLE} "
+        f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
+    )
+
+    sum_ranges = {
+        'RAIN_DAY': completed_hour_end.replace(hour=0, minute=0, second=0, microsecond=0),
+        'RAIN_MONTH': completed_hour_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+        'RAIN_YEAR': completed_hour_end.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0),
+    }
+
+    for column, start_time in sum_ranges.items():
+        try:
+            cursor.execute(sum_query, (start_time, completed_hour_end))
+            sum_result = cursor.fetchone()
+            completed_total = (
+                float(sum_result[0]) if sum_result and sum_result[0] is not None else 0.0
+            )
+        except Exception as exc:
+            logger.error(
+                f"Error calculating rainfall total from {start_time}: {exc}",
+                exc_info=True,
+            )
+            completed_total = 0.0
+
+        df_last_min_data.loc[last_timestamp, column] = completed_total
+
+    return df_last_min_data
+
+
+def _prepare_last_minute_output(df_last_min_data: pd.DataFrame) -> pd.DataFrame:
+    df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
+    df_last_min_values.reset_index(inplace=True)
+
+    rainfall_cols = [
+        col
+        for col in ['RAIN', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR']
+        if col in df_last_min_values.columns
+    ]
+    numeric_columns = df_last_min_values.select_dtypes(include=[np.number]).columns
+    non_rain_cols = [col for col in numeric_columns if col not in rainfall_cols]
+
+    if non_rain_cols:
+        df_last_min_values.loc[:, non_rain_cols] = (
+            df_last_min_values[non_rain_cols].round(1)
+        )
+
+    for col in rainfall_cols:
+        df_last_min_values.loc[:, col] = df_last_min_values[col].round(2)
+
+    return df_last_min_values
+
+
 def update_dataframes():
     global df_last_min_values
 
     while True:
         try:
-            db_connection = get_db_connection()
-            cursor = None
-            try:
-                cursor = db_connection.cursor()
-                query_last_minute = f"""
-                    SELECT {DATE_COLUMN}, {', '.join(RAW_DATA_COLUMNS)}
-                    FROM {DB_TABLE_MIN}
-                    ORDER BY {DATE_COLUMN} DESC LIMIT 1
-                """
-                cursor.execute(query_last_minute)
-                last_minute_data = cursor.fetchall()
+            with closing(get_db_connection()) as db_connection:
+                with db_connection.cursor() as cursor:
+                    df_last_min_data = _fetch_last_minute_data(cursor)
 
-                df_last_min_data = pd.DataFrame(
-                    last_minute_data,
-                    columns=[DATE_COLUMN] + RAW_DATA_COLUMNS
-                )
-                if not df_last_min_data.empty:
-                    df_last_min_data[RAW_DATA_COLUMNS] = df_last_min_data[RAW_DATA_COLUMNS].apply(
-                        pd.to_numeric, errors='coerce'
-                    )
-                    df_last_min_data[DATE_COLUMN] = pd.to_datetime(df_last_min_data[DATE_COLUMN])
-                    df_last_min_data.set_index(DATE_COLUMN, inplace=True)
-                    df_last_min_data = add_calculated_columns(df_last_min_data)
-
-                    if 'RAIN' in df_last_min_data.columns and not df_last_min_data.empty:
-                        last_timestamp = df_last_min_data.index[-1]
-                        if pd.notna(last_timestamp):
-                            end_time = last_timestamp.to_pydatetime()
-                            hour_start = end_time.replace(minute=0, second=0, microsecond=0)
-                            completed_hour_end = hour_start
-
-                            rain_hour_total = 0.0
-                            try:
-                                last_hour_query = (
-                                    f"SELECT RAIN FROM {DB_TABLE} "
-                                    f"WHERE {DATE_COLUMN} <= %s ORDER BY {DATE_COLUMN} DESC LIMIT 1"
-                                )
-                                cursor.execute(last_hour_query, (completed_hour_end,))
-                                last_hour_result = cursor.fetchone()
-                                if last_hour_result and last_hour_result[0] is not None:
-                                    rain_hour_total = float(last_hour_result[0])
-                            except Exception as exc:
-                                logger.error(
-                                    f"Error fetching previous hour rainfall: {exc}",
-                                    exc_info=True,
-                                )
-
-                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_total
-                            sum_ranges = {
-                                'RAIN_DAY': completed_hour_end.replace(hour=0),
-                                'RAIN_MONTH': completed_hour_end.replace(day=1, hour=0),
-                                'RAIN_YEAR': completed_hour_end.replace(month=1, day=1, hour=0),
-                            }
-                            sum_query = (
-                                f"SELECT COALESCE(SUM(RAIN), 0) FROM {DB_TABLE} "
-                                f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
-                            )
-
-                            def _completed_sum(start_boundary: datetime) -> float:
-                                try:
-                                    cursor.execute(sum_query, (start_time, completed_hour_end))
-                                    sum_result = cursor.fetchone()
-                                    completed_total = (
-                                        float(sum_result[0])
-                                        if sum_result and sum_result[0] is not None
-                                        else 0.0
-                                    )
-                                except Exception as exc:
-                                    logger.error(
-                                        f"Error calculating rainfall total from {start_boundary}: {exc}",
-                                        exc_info=True,
-                                    )
-                                    completed_total = 0.0
-                                df_last_min_data.loc[last_timestamp, column] = completed_total
-
-                if not df_last_min_data.empty:
-                    df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
-                    df_last_min_values.reset_index(inplace=True)
-                    rainfall_cols = [
-                        col
-                        for col in ['RAIN', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR']
-                        if col in df_last_min_values.columns
-                    ]
-                    numeric_columns = df_last_min_values.select_dtypes(include=[np.number]).columns
-                    non_rain_cols = [col for col in numeric_columns if col not in rainfall_cols]
-                    if non_rain_cols:
-                        df_last_min_values[non_rain_cols] = df_last_min_values[non_rain_cols].round(1)
-                    for col in rainfall_cols:
-                        df_last_min_values[col] = df_last_min_values[col].round(2)
-            finally:
-                if cursor is not None:
-                    try:
-                        cursor.close()
-                    except Exception:
-                        pass
-                db_connection.close()
+                    if not df_last_min_data.empty:
+                        df_last_min_data = _set_rainfall_totals(cursor, df_last_min_data)
+                        df_last_min_values = _prepare_last_minute_output(df_last_min_data)
         except Exception as e:
             logger.error(f"Error updating dataframes: {e}", exc_info=True)
 
