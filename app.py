@@ -496,20 +496,20 @@ def graph_data():
                 rain_day = df['RAIN'].resample('d').sum(min_count=1)
                 df_res['RAIN'] = rain_day
         else:
-            df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('M').mean()
+            df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('ME').mean()
             if 'WIND_DIR' in df.columns:
-                df_res['WIND_DIR'] = df['WIND_DIR'].resample('M').apply(_vector_average)
+                df_res['WIND_DIR'] = df['WIND_DIR'].resample('ME').apply(_vector_average)
             if 'RADIATION' in df.columns:
                 daily_rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
-                rad = daily_rad.resample('M').sum(min_count=1)
+                rad = daily_rad.resample('ME').sum(min_count=1)
                 df_res = df_res.join(rad.rename('RADIATION'))
             if 'EVAPOR_MINUTE' in df.columns:
-                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('M').apply(_last_valid_value)
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('ME').apply(_last_valid_value)
             if not df_res.empty:
                 df_res.index = df_res.index.to_period('M').to_timestamp()
             if 'RAIN' in df.columns:
                 daily_rain = df['RAIN'].resample('d').sum(min_count=1)
-                rain_month = daily_rain.resample('M').sum(min_count=1)
+                rain_month = daily_rain.resample('ME').sum(min_count=1)
                 df_res = df_res.drop(columns=['RAIN'], errors='ignore').join(
                     rain_month.rename('RAIN')
                 )
@@ -593,8 +593,12 @@ def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
     rel_hum = pd.to_numeric(rel_hum, errors="coerce")
     a = 17.27
     b = 237.7
-    alpha = (a * temp_c / (b + temp_c)) + np.log(rel_hum / 100.0)
-    return (b * alpha) / (a - alpha)
+    # Humidity values at or below zero lead to invalid logarithms; treat them as missing
+    safe_humidity = rel_hum.where(rel_hum > 0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        alpha = (a * temp_c / (b + temp_c)) + np.log(safe_humidity / 100.0)
+    dew_point = (b * alpha) / (a - alpha)
+    return dew_point.where(safe_humidity.notna())
 
 
 def _build_stats(period: str):
@@ -788,7 +792,7 @@ def _build_stats(period: str):
         elif period in {'today', 'month'}:
             total_energy = float(daily_energy.sum())
         else:
-            monthly_energy = daily_energy.resample('M').sum()
+            monthly_energy = daily_energy.resample('ME').sum()
             total_energy = float(monthly_energy.sum()) if not monthly_energy.empty else 0.0
         result.append({
             "label": "Сума слънчева радиация",
@@ -1004,7 +1008,7 @@ def plot():
         elif category == "daily":
             df_grouped = df.groupby(pd.Grouper(freq='D')).mean()
         elif category == "monthly":
-            df_grouped = df.groupby(pd.Grouper(freq='M')).mean()
+            df_grouped = df.groupby(pd.Grouper(freq='ME')).mean()
         df_grouped = add_calculated_columns(df_grouped)
         df_grouped.reset_index(inplace=True)
         df_grouped.rename(columns={'index': DATE_COLUMN}, inplace=True)
