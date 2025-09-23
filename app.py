@@ -311,7 +311,27 @@ def update_dataframes():
                                 f"SELECT COALESCE(SUM(RAIN_HOUR), 0) FROM {DB_TABLE} "
                                 f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
                             )
-                            for column, start_time in sum_ranges.items():
+                            try:
+                                cursor.execute(avg_query, (hour_start, end_time))
+                                avg_result = cursor.fetchone()
+                                if avg_result and avg_result[0] is not None:
+                                    rain_hour_value = float(avg_result[0])
+                                else:
+                                    rain_hour_value = 0.0
+                            except Exception as exc:
+                                logger.error(
+                                    f"Error calculating RAIN_HOUR average: {exc}",
+                                    exc_info=True,
+                                )
+                                rain_hour_value = 0.0
+                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_value
+
+                            sum_query = (
+                                f"SELECT COALESCE(SUM(RAIN_MINUTE), 0) FROM {DB_TABLE} "
+                                f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
+                            )
+
+                            def _completed_sum(start_boundary: datetime) -> float:
                                 try:
                                     cursor.execute(sum_query, (start_time, completed_hour_end))
                                     sum_result = cursor.fetchone()
@@ -322,7 +342,7 @@ def update_dataframes():
                                     )
                                 except Exception as exc:
                                     logger.error(
-                                        f"Error calculating {column}: {exc}",
+                                        f"Error calculating rainfall total from {start_boundary}: {exc}",
                                         exc_info=True,
                                     )
                                     total = 0.0
@@ -453,6 +473,7 @@ def graph_data():
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
             if 'RAIN_MINUTE' in df.columns:
                 df_res['RAIN_MINUTE'] = df['RAIN_MINUTE'].resample('h').sum(min_count=1)
+
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
             if 'WIND_DIR' in df.columns:
@@ -707,11 +728,11 @@ def _build_stats(period: str):
             "value": f"макс {format_number(gust_value)} km/h{dir_text} ({_format_dt(gust_time)})",
         })
 
-    rain_total = df['RAIN_MINUTE'].dropna().sum()
-    if rain_total:
-        label = "Сума валежи за деня" if period == 'today' else "Сума валежи"
+    rain_series = df['RAIN_MINUTE'].dropna()
+    if not rain_series.empty:
+        rain_total = float(rain_series.sum())
         result.append({
-            "label": label,
+            "label": "Сума валежи",
             "value": f"{format_number(rain_total)} mm",
         })
 
