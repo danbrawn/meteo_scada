@@ -172,6 +172,7 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
             df['RAIN_DAY'] = np.nan
             df['RAIN_MONTH'] = np.nan
             df['RAIN_YEAR'] = np.nan
+
     if 'RAIN_HOUR' in df.columns:
         df['RAIN_HOUR'] = pd.to_numeric(df['RAIN_HOUR'], errors='coerce')
     if 'EVAPOR_MINUTE' in df.columns:
