@@ -13,7 +13,7 @@ $(document).ready(function() {
     { key: 'T_AIR_14', name: 'Температура 14:00', unit: '°C' },
     { key: 'REL_HUM_14', name: 'Отн. влажност 14:00', unit: '%' },
     { key: 'P_REL_14', name: 'Отн. налягане 14:00', unit: 'hPa' },
-    { key: 'EVAPOR_DAY', name: 'Изпарение', unit: 'mm/d' }
+    { key: 'EVAPOR_DAY', name: 'Изпарение', unit: 'mm' }
   ];
   let days = [];
   function updateDays(year, month) {

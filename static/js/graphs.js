@@ -25,6 +25,7 @@ $(document).ready(function() {
       const isEnergyUnit = period !== '24h';
       const radiationUnit = isEnergyUnit ? 'kWh/mm²' : 'W/m²';
       const radiationHoverFormat = isEnergyUnit ? '.2f' : '.1f';
+      const evaporationUnit = period === '24h' ? 'mm/day' : 'mm';
       const baseLayout = {
         xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true },
         margin: { l: 80, r: 80, t: 40, b: 80 },
@@ -167,10 +168,10 @@ $(document).ready(function() {
             {
               x,
               y: data.EVAPOR_MINUTE,
-              name: 'Изпарение [mm]',
+              name: `Изпарение [${evaporationUnit}]`,
               type: 'bar',
               marker: { color: 'green' },
-              hovertemplate: '%{fullData.name}: %{y:.1f} mm<extra></extra>'
+              hovertemplate: `%{fullData.name}: %{y:.1f} ${evaporationUnit}<extra></extra>`
             }
           ],
           layout: {

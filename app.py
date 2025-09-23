@@ -140,14 +140,16 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy().sort_index()
     if 'RAIN_MINUTE' in df.columns:
         df['RAIN_MINUTE'] = pd.to_numeric(df['RAIN_MINUTE'], errors='coerce')
-        df['RAIN_DAY'] = df.groupby(df.index.date)['RAIN_MINUTE'].cumsum()
-        df['RAIN_MONTH'] = df.groupby(df.index.to_period('M'))['RAIN_MINUTE'].cumsum()
-        df['RAIN_YEAR'] = df.groupby(df.index.year)['RAIN_MINUTE'].cumsum()
+        rain_minute = df['RAIN_MINUTE']
+        df['RAIN_HOUR'] = rain_minute.groupby(df.index.to_period('H')).cumsum()
+        df['RAIN_DAY'] = rain_minute.groupby(df.index.date).cumsum()
+        df['RAIN_MONTH'] = rain_minute.groupby(df.index.to_period('M')).cumsum()
+        df['RAIN_YEAR'] = rain_minute.groupby(df.index.year).cumsum()
     if 'RAIN_HOUR' in df.columns:
         df['RAIN_HOUR'] = pd.to_numeric(df['RAIN_HOUR'], errors='coerce')
     if 'EVAPOR_MINUTE' in df.columns:
         df['EVAPOR_MINUTE'] = pd.to_numeric(df['EVAPOR_MINUTE'], errors='coerce')
-        df['EVAPOR_DAY'] = df.groupby(df.index.date)['EVAPOR_MINUTE'].cumsum()
+        df['EVAPOR_DAY'] = df['EVAPOR_MINUTE']
     return df
 # Function to establish a connection to the MySQL database
 def get_db_connection():
@@ -425,6 +427,9 @@ def graph_data():
             df_res = df.resample('h').mean()
             if 'WIND_DIR' in df.columns:
                 df_res['WIND_DIR'] = df['WIND_DIR'].resample('h').apply(_vector_average)
+            if 'EVAPOR_MINUTE' in df.columns:
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
+
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
             if 'WIND_DIR' in df.columns:
@@ -432,6 +437,9 @@ def graph_data():
             if 'RADIATION' in df.columns:
                 rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
                 df_res = df_res.join(rad.rename('RADIATION'))
+            if 'EVAPOR_MINUTE' in df.columns:
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('d').apply(_last_valid_value)
+
         else:
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('M').mean()
             if 'WIND_DIR' in df.columns:
@@ -440,6 +448,9 @@ def graph_data():
                 daily_rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
                 rad = daily_rad.resample('M').sum(min_count=1)
                 df_res = df_res.join(rad.rename('RADIATION'))
+            if 'EVAPOR_MINUTE' in df.columns:
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('M').apply(_last_valid_value)
+
             if not df_res.empty:
                 df_res.index = df_res.index.to_period('M').to_timestamp()
 
@@ -507,6 +518,14 @@ def _vector_average(series: pd.Series) -> float:
     if angle < 0:
         angle += 360
     return angle
+
+
+def _last_valid_value(series: pd.Series) -> float:
+    values = pd.to_numeric(series, errors="coerce").dropna()
+    if values.empty:
+        return np.nan
+    return float(values.iloc[-1])
+
 
 
 def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
@@ -669,12 +688,14 @@ def _build_stats(period: str):
             "value": f"{format_number(rain_total)} mm",
         })
 
-    evap_total = df['EVAPOR_MINUTE'].dropna().sum()
-    if evap_total:
+    evap_series = df['EVAPOR_MINUTE'].dropna()
+    if not evap_series.empty:
+        evap_value = float(evap_series.iloc[-1])
         label = "Изпарение за деня" if period == 'today' else "Изпарение"
+        unit = "mm" if period == 'today' else "mm/day"
         result.append({
             "label": label,
-            "value": f"{format_number(evap_total)} mm",
+            "value": f"{format_number(evap_value)} {unit}",
         })
 
     if period != 'today' and not df['RAIN_MINUTE'].dropna().empty:
@@ -839,7 +860,7 @@ def report_data_endpoint():
 
         if "EVAPOR_MINUTE" in df.columns:
             combined = combined.join(
-                df["EVAPOR_MINUTE"].resample("D").sum(min_count=1).rename("EVAPOR_DAY")
+                df["EVAPOR_MINUTE"].resample("D").apply(_last_valid_value).rename("EVAPOR_DAY")
             )
 
         if "RADIATION" in df.columns:
