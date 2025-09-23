@@ -429,6 +429,7 @@ def graph_data():
                 df_res['WIND_DIR'] = df['WIND_DIR'].resample('h').apply(_vector_average)
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
+
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
             if 'WIND_DIR' in df.columns:
@@ -438,6 +439,7 @@ def graph_data():
                 df_res = df_res.join(rad.rename('RADIATION'))
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('d').apply(_last_valid_value)
+
         else:
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('M').mean()
             if 'WIND_DIR' in df.columns:
@@ -448,6 +450,7 @@ def graph_data():
                 df_res = df_res.join(rad.rename('RADIATION'))
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('M').apply(_last_valid_value)
+
             if not df_res.empty:
                 df_res.index = df_res.index.to_period('M').to_timestamp()
 
@@ -522,6 +525,7 @@ def _last_valid_value(series: pd.Series) -> float:
     if values.empty:
         return np.nan
     return float(values.iloc[-1])
+
 
 
 def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
