@@ -208,44 +208,47 @@ def closeSQLconnection():
     engine.dispose()
 
 
+def _hour_start(dt: datetime) -> datetime:
+    """
+    Normalize a datetime value to the beginning of the hour for which
+    hourly aggregates should be computed.
+
+    If the provided datetime is exactly on the hour (minutes, seconds and
+    microseconds are zero) we keep the same hour. Otherwise we use the
+    previous full hour, because the current hour has not finished yet and
+    cannot be aggregated reliably.
+    """
+
+    if dt.minute == 0 and dt.second == 0 and dt.microsecond == 0:
+        return dt
+    return (dt - timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+
+
 def mean_1h(start_datetime, end_datetime):
-    # Initialize necessary global variables and load configuration as required
-    start_time = start_datetime - timedelta(hours=1)
-    end_time_manual = end_datetime
+    # Determine the range of hours to process ensuring we always work with
+    # complete hour intervals (e.g. 14:00 -> 14:59).
+    current_hour = _hour_start(start_datetime).replace(second=0, microsecond=0)
+    end_hour = _hour_start(end_datetime).replace(second=0, microsecond=0)
 
-    # Make sure openSQLconnection, makeHourData, populateMean1hour, and closeSQLconnection
-    # functions are defined as in your existing script
+    if end_hour < current_hour:
+        end_hour = current_hour
 
-    # Execute the data extraction and processing loop
-    if end_time_manual > start_time:
-        time_difference = end_time_manual - start_time
-        time_difference_in_s = time_difference.total_seconds()
-        time_difference_in_h = int(divmod(time_difference_in_s, 3600)[0])
-        for day in range(1, time_difference_in_h + 1):  # Loop through each hour in the range
-            start_time = start_time + timedelta(hours=1)
-            hour_end = start_time + timedelta(hours=1)
-            if datetime.now() < hour_end:
-                print(f"Hour starting at {start_time} not finished; skipping")
-                continue
-            result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
-            if result == 'Exists_data_for_that_hour':
-                makeHourData()
-                populateMean1hour()
-            else:
-                print(f"No data for hour starting at {start_time}; skipping")
-            closeSQLconnection()
-    else:
-        hour_end = start_time + timedelta(hours=1)
-        if datetime.now() > hour_end:
-            result = openSQLconnection(start_time.strftime('%Y-%m-%d %H:%M:%S'))
-            if result == 'Exists_data_for_that_hour':
-                makeHourData()
-                populateMean1hour()
-            else:
-                print(f"No data for hour starting at {start_time}; skipping")
-            closeSQLconnection()
+    while current_hour <= end_hour:
+        hour_end = current_hour + timedelta(hours=1)
+        if datetime.now() < hour_end:
+            print(f"Hour starting at {current_hour} not finished; skipping")
+            current_hour += timedelta(hours=1)
+            continue
+
+        result = openSQLconnection(current_hour.strftime('%Y-%m-%d %H:%M:%S'))
+        if result == 'Exists_data_for_that_hour':
+            makeHourData()
+            populateMean1hour()
         else:
-            print(f"Hour starting at {start_time} not finished; skipping")
+            print(f"No data for hour starting at {current_hour}; skipping")
+        closeSQLconnection()
+
+        current_hour += timedelta(hours=1)
 
 
 #temp_date_str = '2024-07-01 09:00:00'
