@@ -26,11 +26,29 @@ $(document).ready(function() {
       const radiationUnit = isEnergyUnit ? 'kWh/mm²' : 'W/m²';
       const radiationHoverFormat = isEnergyUnit ? '.2f' : '.1f';
       const evaporationUnit = period === '24h' ? 'mm/day' : 'mm';
+      const xAxisSpikeSettings = {
+        showspikes: true,
+        spikemode: 'across',
+        spikesnap: 'cursor',
+        spikedash: 'dot',
+        spikethickness: 1,
+        spikecolor: '#6c757d'
+      };
+      const yAxisSpikeSettings = {
+        showspikes: true,
+        spikesnap: 'cursor',
+        spikedash: 'dot',
+        spikethickness: 1,
+        spikecolor: '#6c757d'
+      };
       const baseLayout = {
-        xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true },
+        xaxis: { ...tickSettings[period], type: 'date', title: 'Дата/час', automargin: true, ...xAxisSpikeSettings },
         margin: { l: 80, r: 80, t: 40, b: 80 },
         legend: { orientation: 'h', y: -0.3 },
         hoverlabel: { namelength: -1 },
+        hovermode: 'x unified',
+        hoverdistance: 100,
+        spikedistance: -1,
         showlegend: true
       };
       if (x.length) {
@@ -63,8 +81,18 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Температура и Влажност',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'red', linecolor: 'red' },
+            yaxis: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'red',
+              tickformat: '.1f',
+              hoverformat: '.1f',
+              automargin: true,
+              color: 'red',
+              linecolor: 'red'
+            },
             yaxis2: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'blue',
               overlaying: 'y',
               side: 'right',
               tickformat: '.1f',
@@ -99,6 +127,8 @@ $(document).ready(function() {
           layout: {
             title: 'Налягане',
             yaxis: {
+              ...yAxisSpikeSettings,
+              spikecolor: '#333',
               tickformat: '.1f',
               hoverformat: '.1f',
               automargin: true,
@@ -131,8 +161,18 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Вятър',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'orange', linecolor: 'orange' },
+            yaxis: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'orange',
+              tickformat: '.1f',
+              hoverformat: '.1f',
+              automargin: true,
+              color: 'orange',
+              linecolor: 'orange'
+            },
             yaxis2: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'teal',
               overlaying: 'y',
               side: 'right',
               tickformat: '.0f',
@@ -159,7 +199,15 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Валежи',
-            yaxis: { tickformat: '.2f', hoverformat: '.2f', automargin: true, color: 'blue', linecolor: 'blue' }
+            yaxis: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'blue',
+              tickformat: '.2f',
+              hoverformat: '.2f',
+              automargin: true,
+              color: 'blue',
+              linecolor: 'blue'
+            }
           }
         },
         {
@@ -176,7 +224,15 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Изпарение',
-            yaxis: { tickformat: '.1f', hoverformat: '.1f', automargin: true, color: 'green', linecolor: 'green' }
+            yaxis: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'green',
+              tickformat: '.1f',
+              hoverformat: '.1f',
+              automargin: true,
+              color: 'green',
+              linecolor: 'green'
+            }
           }
         },
         {
@@ -193,7 +249,15 @@ $(document).ready(function() {
           ],
           layout: {
             title: 'Слънчева радиация',
-            yaxis: { tickformat: radiationHoverFormat, hoverformat: radiationHoverFormat, automargin: true, color: 'orange', linecolor: 'orange' }
+            yaxis: {
+              ...yAxisSpikeSettings,
+              spikecolor: 'orange',
+              tickformat: radiationHoverFormat,
+              hoverformat: radiationHoverFormat,
+              automargin: true,
+              color: 'orange',
+              linecolor: 'orange'
+            }
           }
         }
       ];
