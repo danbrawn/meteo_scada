@@ -96,6 +96,9 @@ EXCEL_TEMPLATE_PATH = 'template.xlsx'
 RAW_BG = [col.strip() for col in config.get('SQL', 'DATA_COLUMNS_BG').split(',')]
 CALCULATED_BG = [col.strip() for col in config.get('SQL', 'calc_columns_bg').split(',')]
 DATA_COLUMNS_BG = RAW_BG + CALCULATED_BG
+# Constants for radiation unit conversion
+KWH_PER_M2_FROM_MINUTE = 1 / 60000.0  # Sum of 1-minute W/m² values -> kWh/m²
+KWH_PER_M2_FROM_HOUR = 1 / 1000.0  # Sum of 1-hour W/m² values -> kWh/m²
 # Variable to store the path of the saved plot image
 plot_image_path = 'plot.png'
 
@@ -137,13 +140,9 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy().sort_index()
     if 'RAIN_MINUTE' in df.columns:
         df['RAIN_MINUTE'] = pd.to_numeric(df['RAIN_MINUTE'], errors='coerce')
-        df['RAIN_HOUR'] = df.groupby(df.index.to_period('H'))['RAIN_MINUTE'].cumsum()
-        df['RAIN_DAY'] = df.groupby(df.index.date)['RAIN_MINUTE'].cumsum()
-        df['RAIN_MONTH'] = df.groupby(df.index.to_period('M'))['RAIN_MINUTE'].cumsum()
-        df['RAIN_YEAR'] = df.groupby(df.index.year)['RAIN_MINUTE'].cumsum()
     if 'EVAPOR_MINUTE' in df.columns:
         df['EVAPOR_MINUTE'] = pd.to_numeric(df['EVAPOR_MINUTE'], errors='coerce')
-        df['EVAPOR_DAY'] = df.groupby(df.index.date)['EVAPOR_MINUTE'].cumsum()
+        df['EVAPOR_DAY'] = df['EVAPOR_MINUTE']
     return df
 # Function to establish a connection to the MySQL database
 def get_db_connection():
@@ -284,34 +283,63 @@ def update_dataframes():
                         last_timestamp = df_last_min_data.index[-1]
                         if pd.notna(last_timestamp):
                             end_time = last_timestamp.to_pydatetime()
+                            completed_hour_end = end_time.replace(minute=0, second=0, microsecond=0)
+
+                            rain_hour_total = 0.0
+                            try:
+                                cursor.execute(
+                                    f"SELECT RAIN_HOUR FROM {DB_TABLE} "
+                                    f"WHERE {DATE_COLUMN} = %s ORDER BY {DATE_COLUMN} DESC LIMIT 1",
+                                    (completed_hour_end,),
+                                )
+                                hour_result = cursor.fetchone()
+                                if hour_result and hour_result[0] is not None:
+                                    rain_hour_total = float(hour_result[0])
+                            except Exception as exc:
+                                logger.error(
+                                    f"Error fetching hourly rainfall: {exc}",
+                                    exc_info=True,
+                                )
+                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_total
+
                             sum_ranges = {
-                                'RAIN_HOUR': end_time.replace(minute=0, second=0, microsecond=0),
-                                'RAIN_DAY': end_time.replace(hour=0, minute=0, second=0, microsecond=0),
-                                'RAIN_MONTH': end_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
-                                'RAIN_YEAR': end_time.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0),
+                                'RAIN_DAY': completed_hour_end.replace(hour=0),
+                                'RAIN_MONTH': completed_hour_end.replace(day=1, hour=0),
+                                'RAIN_YEAR': completed_hour_end.replace(month=1, day=1, hour=0),
                             }
                             sum_query = (
-                                f"SELECT SUM(RAIN_MINUTE) FROM {DB_TABLE_MIN} "
-                                f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s"
+                                f"SELECT COALESCE(SUM(RAIN_HOUR), 0) FROM {DB_TABLE} "
+                                f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
                             )
                             for column, start_time in sum_ranges.items():
                                 try:
-                                    cursor.execute(sum_query, (start_time, end_time))
+                                    cursor.execute(sum_query, (start_time, completed_hour_end))
                                     sum_result = cursor.fetchone()
-                                    total = sum_result[0] if sum_result and sum_result[0] is not None else 0.0
+                                    total = (
+                                        float(sum_result[0])
+                                        if sum_result and sum_result[0] is not None
+                                        else 0.0
+                                    )
                                 except Exception as exc:
                                     logger.error(
                                         f"Error calculating {column}: {exc}",
                                         exc_info=True,
                                     )
                                     total = 0.0
-                                df_last_min_data.loc[last_timestamp, column] = float(total)
+                                df_last_min_data.loc[last_timestamp, column] = total
 
                 if not df_last_min_data.empty:
                     df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
                     df_last_min_values.reset_index(inplace=True)
                     numeric_columns = df_last_min_values.select_dtypes(include=[np.number]).columns
                     df_last_min_values[numeric_columns] = df_last_min_values[numeric_columns].round(1)
+                    rainfall_cols = [
+                        col
+                        for col in ['RAIN_MINUTE', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR']
+                        if col in df_last_min_values.columns
+                    ]
+                    for col in rainfall_cols:
+                        df_last_min_values[col] = df_last_min_values[col].round(2)
             finally:
                 if cursor is not None:
                     try:
@@ -419,10 +447,40 @@ def graph_data():
 
         if period == '24h':
             df_res = df.resample('h').mean()
+            if 'WIND_DIR' in df.columns:
+                df_res['WIND_DIR'] = df['WIND_DIR'].resample('h').apply(_vector_average)
+            if 'EVAPOR_MINUTE' in df.columns:
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
+            if 'RAIN_MINUTE' in df.columns:
+                df_res['RAIN_MINUTE'] = df['RAIN_MINUTE'].resample('h').sum(min_count=1)
+        elif period == '30d':
+            df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
+            if 'WIND_DIR' in df.columns:
+                df_res['WIND_DIR'] = df['WIND_DIR'].resample('d').apply(_vector_average)
+            if 'RADIATION' in df.columns:
+                rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
+                df_res = df_res.join(rad.rename('RADIATION'))
+            if 'EVAPOR_MINUTE' in df.columns:
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('d').apply(_last_valid_value)
+            if 'RAIN_MINUTE' in df.columns:
+                rain_day = df['RAIN_MINUTE'].resample('d').sum(min_count=1)
+                df_res['RAIN_MINUTE'] = rain_day
         else:
-            df_others = df.drop(columns=['RADIATION']).resample('d').mean()
-            rad = df['RADIATION'].resample('d').sum() / 1000
-            df_res = df_others.join(rad.rename('RADIATION'))
+            df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('M').mean()
+            if 'WIND_DIR' in df.columns:
+                df_res['WIND_DIR'] = df['WIND_DIR'].resample('M').apply(_vector_average)
+            if 'RADIATION' in df.columns:
+                daily_rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
+                rad = daily_rad.resample('M').sum(min_count=1)
+                df_res = df_res.join(rad.rename('RADIATION'))
+            if 'EVAPOR_MINUTE' in df.columns:
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('M').apply(_last_valid_value)
+            if not df_res.empty:
+                df_res.index = df_res.index.to_period('M').to_timestamp()
+            if 'RAIN_MINUTE' in df.columns:
+                daily_rain = df['RAIN_MINUTE'].resample('d').sum(min_count=1)
+                rain_month = daily_rain.resample('M').sum(min_count=1)
+                df_res = df_res.join(rain_month.rename('RAIN_MINUTE'))
 
         df_res = df_res.dropna(how='all')
         df_res.reset_index(inplace=True)
@@ -473,6 +531,28 @@ def format_number(val: float) -> str:
         whole = whole[:-3]
     whole_with_space = ' '.join(reversed(groups))
     return f"{sign}{whole_with_space},{frac}"
+
+
+def _vector_average(series: pd.Series) -> float:
+    values = pd.to_numeric(series, errors='coerce').dropna()
+    if values.empty:
+        return np.nan
+    radians = np.deg2rad(values)
+    sin_sum = np.sin(radians).sum()
+    cos_sum = np.cos(radians).sum()
+    if sin_sum == 0 and cos_sum == 0:
+        return np.nan
+    angle = np.degrees(np.arctan2(sin_sum, cos_sum))
+    if angle < 0:
+        angle += 360
+    return angle
+
+
+def _last_valid_value(series: pd.Series) -> float:
+    values = pd.to_numeric(series, errors="coerce").dropna()
+    if values.empty:
+        return np.nan
+    return float(values.iloc[-1])
 
 
 def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
@@ -635,12 +715,14 @@ def _build_stats(period: str):
             "value": f"{format_number(rain_total)} mm",
         })
 
-    evap_total = df['EVAPOR_MINUTE'].dropna().sum()
-    if evap_total:
+    evap_series = df['EVAPOR_MINUTE'].dropna()
+    if not evap_series.empty:
+        evap_value = float(evap_series.iloc[-1])
         label = "Изпарение за деня" if period == 'today' else "Изпарение"
+        unit = "mm" if period == 'today' else "mm/day"
         result.append({
             "label": label,
-            "value": f"{format_number(evap_total)} mm",
+            "value": f"{format_number(evap_value)} {unit}",
         })
 
     if period != 'today' and not df['RAIN_MINUTE'].dropna().empty:
@@ -664,15 +746,21 @@ def _build_stats(period: str):
     if not rad_series.empty:
         rad_max = float(rad_series.max())
         rad_time = rad_series.idxmax()
-        rad_sum = float(rad_series.sum())
         result.append({
             "label": "Слънчева радиация",
             "value": f"макс {format_number(rad_max)} W/m² ({_format_dt(rad_time)})",
         })
-        rad_sum_kwh = rad_sum / 60000.0
+        daily_energy = rad_series.resample('D').sum() * KWH_PER_M2_FROM_MINUTE
+        if daily_energy.empty:
+            total_energy = 0.0
+        elif period in {'today', 'month'}:
+            total_energy = float(daily_energy.sum())
+        else:
+            monthly_energy = daily_energy.resample('M').sum()
+            total_energy = float(monthly_energy.sum()) if not monthly_energy.empty else 0.0
         result.append({
             "label": "Сума слънчева радиация",
-            "value": f"{format_number(rad_sum_kwh)} kWh/m²",
+            "value": f"{format_number(total_energy)} kWh/mm²",
         })
 
     return result
@@ -727,6 +815,7 @@ def report_data_endpoint():
             "WIND_SPEED_1",
             "WIND_SPEED_2",
             "WIND_DIR",
+            "RADIATION",
             "RAIN_MINUTE",
             "EVAPOR_MINUTE",
         ]
@@ -782,12 +871,14 @@ def report_data_endpoint():
                 "P_ABS",
                 "WIND_SPEED_1",
                 "WIND_SPEED_2",
-                "WIND_DIR",
             ]
             if c in df.columns
         ]
         if mean_cols:
             combined = combined.join(df[mean_cols].resample("D").mean())
+        if "WIND_DIR" in df.columns:
+            wind_daily = df["WIND_DIR"].resample("D").apply(_vector_average)
+            combined = combined.join(wind_daily.rename("WIND_DIR"))
 
         if "RAIN_MINUTE" in df.columns:
             combined = combined.join(
@@ -796,8 +887,12 @@ def report_data_endpoint():
 
         if "EVAPOR_MINUTE" in df.columns:
             combined = combined.join(
-                df["EVAPOR_MINUTE"].resample("D").sum(min_count=1).rename("EVAPOR_DAY")
+                df["EVAPOR_MINUTE"].resample("D").apply(_last_valid_value).rename("EVAPOR_DAY")
             )
+
+        if "RADIATION" in df.columns:
+            rad_daily = df["RADIATION"].resample("D").sum(min_count=1) * KWH_PER_M2_FROM_HOUR
+            combined = combined.join(rad_daily.rename("RADIATION"))
 
         at_14_cols = [c for c in ["T_AIR", "REL_HUM", "P_REL"] if c in df.columns]
         if at_14_cols:
