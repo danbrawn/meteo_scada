@@ -150,7 +150,7 @@ $(document).ready(function() {
           data: [
             {
               x,
-              y: data.RAIN_MINUTE,
+              y: data.RAIN,
               name: 'Валежи [mm]',
               type: 'bar',
               marker: { color: 'blue' },
