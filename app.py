@@ -141,10 +141,38 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
     if 'RAIN_MINUTE' in df.columns:
         df['RAIN_MINUTE'] = pd.to_numeric(df['RAIN_MINUTE'], errors='coerce')
         rain_minute = df['RAIN_MINUTE']
-        df['RAIN_HOUR'] = rain_minute.groupby(df.index.to_period('H')).cumsum()
-        df['RAIN_DAY'] = rain_minute.groupby(df.index.date).cumsum()
-        df['RAIN_MONTH'] = rain_minute.groupby(df.index.to_period('M')).cumsum()
-        df['RAIN_YEAR'] = rain_minute.groupby(df.index.year).cumsum()
+        if rain_minute.notna().any():
+            hour_periods = df.index.to_period('h')
+            rain_hour_running = (
+                rain_minute.groupby(hour_periods)
+                .expanding()
+                .mean()
+                .reset_index(level=0, drop=True)
+            )
+            df['RAIN_HOUR'] = rain_hour_running
+
+            hourly_mean = rain_minute.groupby(hour_periods).mean()
+            hourly_mean.index = hourly_mean.index.to_timestamp()
+            hour_start_times = df.index.floor('h')
+
+            def _completed_totals(freq: str) -> np.ndarray:
+                cumsum = hourly_mean.groupby(hourly_mean.index.to_period(freq)).cumsum()
+                completed = (cumsum - hourly_mean).reindex(hour_start_times, fill_value=0.0)
+                return completed.to_numpy()
+
+            completed_day = _completed_totals('D')
+            completed_month = _completed_totals('M')
+            completed_year = _completed_totals('Y')
+
+            df['RAIN_DAY'] = completed_day + rain_hour_running.to_numpy()
+            df['RAIN_MONTH'] = completed_month + rain_hour_running.to_numpy()
+            df['RAIN_YEAR'] = completed_year + rain_hour_running.to_numpy()
+        else:
+            df['RAIN_HOUR'] = np.nan
+            df['RAIN_DAY'] = np.nan
+            df['RAIN_MONTH'] = np.nan
+            df['RAIN_YEAR'] = np.nan
+
     if 'RAIN_HOUR' in df.columns:
         df['RAIN_HOUR'] = pd.to_numeric(df['RAIN_HOUR'], errors='coerce')
     if 'EVAPOR_MINUTE' in df.columns:
@@ -290,28 +318,60 @@ def update_dataframes():
                         last_timestamp = df_last_min_data.index[-1]
                         if pd.notna(last_timestamp):
                             end_time = last_timestamp.to_pydatetime()
-                            sum_ranges = {
-                                'RAIN_HOUR': end_time.replace(minute=0, second=0, microsecond=0),
-                                'RAIN_DAY': end_time.replace(hour=0, minute=0, second=0, microsecond=0),
-                                'RAIN_MONTH': end_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
-                                'RAIN_YEAR': end_time.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0),
-                            }
-                            sum_query = (
-                                f"SELECT SUM(RAIN_MINUTE) FROM {DB_TABLE_MIN} "
+                            hour_start = end_time.replace(minute=0, second=0, microsecond=0)
+                            day_start = hour_start.replace(hour=0)
+                            month_start = hour_start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                            year_start = hour_start.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+                            rain_hour_value = np.nan
+                            avg_query = (
+                                f"SELECT AVG(RAIN_MINUTE) FROM {DB_TABLE_MIN} "
                                 f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s"
                             )
-                            for column, start_time in sum_ranges.items():
+                            try:
+                                cursor.execute(avg_query, (hour_start, end_time))
+                                avg_result = cursor.fetchone()
+                                if avg_result and avg_result[0] is not None:
+                                    rain_hour_value = float(avg_result[0])
+                                else:
+                                    rain_hour_value = 0.0
+                            except Exception as exc:
+                                logger.error(
+                                    f"Error calculating RAIN_HOUR average: {exc}",
+                                    exc_info=True,
+                                )
+                                rain_hour_value = 0.0
+                            df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_value
+
+                            sum_query = (
+                                f"SELECT COALESCE(SUM(RAIN_MINUTE), 0) FROM {DB_TABLE} "
+                                f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
+                            )
+
+                            def _completed_sum(start_boundary: datetime) -> float:
                                 try:
-                                    cursor.execute(sum_query, (start_time, end_time))
+                                    cursor.execute(sum_query, (start_boundary, hour_start))
                                     sum_result = cursor.fetchone()
-                                    total = sum_result[0] if sum_result and sum_result[0] is not None else 0.0
+                                    if sum_result and sum_result[0] is not None:
+                                        value = sum_result[0]
+                                        if isinstance(value, Decimal):
+                                            return float(value)
+                                        return float(value)
                                 except Exception as exc:
                                     logger.error(
-                                        f"Error calculating {column}: {exc}",
+                                        f"Error calculating rainfall total from {start_boundary}: {exc}",
                                         exc_info=True,
                                     )
-                                    total = 0.0
-                                df_last_min_data.loc[last_timestamp, column] = float(total)
+                                return 0.0
+
+                            rain_hour_contribution = 0.0 if pd.isna(rain_hour_value) else rain_hour_value
+                            day_total = _completed_sum(day_start) + rain_hour_contribution
+                            month_total = _completed_sum(month_start) + rain_hour_contribution
+                            year_total = _completed_sum(year_start) + rain_hour_contribution
+
+                            df_last_min_data.loc[last_timestamp, 'RAIN_DAY'] = day_total
+                            df_last_min_data.loc[last_timestamp, 'RAIN_MONTH'] = month_total
+                            df_last_min_data.loc[last_timestamp, 'RAIN_YEAR'] = year_total
 
                 if not df_last_min_data.empty:
                     df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
@@ -429,7 +489,6 @@ def graph_data():
                 df_res['WIND_DIR'] = df['WIND_DIR'].resample('h').apply(_vector_average)
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
-
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
             if 'WIND_DIR' in df.columns:
@@ -439,7 +498,6 @@ def graph_data():
                 df_res = df_res.join(rad.rename('RADIATION'))
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('d').apply(_last_valid_value)
-
         else:
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('M').mean()
             if 'WIND_DIR' in df.columns:
@@ -450,7 +508,6 @@ def graph_data():
                 df_res = df_res.join(rad.rename('RADIATION'))
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('M').apply(_last_valid_value)
-
             if not df_res.empty:
                 df_res.index = df_res.index.to_period('M').to_timestamp()
 
@@ -525,7 +582,6 @@ def _last_valid_value(series: pd.Series) -> float:
     if values.empty:
         return np.nan
     return float(values.iloc[-1])
-
 
 
 def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
