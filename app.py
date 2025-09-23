@@ -14,6 +14,8 @@ import logging
 import os
 import pandas as pd
 import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 from flask import (
     Flask,
     render_template,
@@ -1014,11 +1016,27 @@ def plot():
         fig1 = px.line(my_df, x=DATE_COLUMN, y=columns_to_plot, title="Всички данни")
 
         # Update axis titles
-        fig1.update_xaxes(title_text="Дата")
+        fig1.update_xaxes(
+            title_text="Дата",
+            showspikes=True,
+            spikecolor="#808080",
+            spikethickness=1,
+            spikedash="dot",
+            spikemode="across",
+            spikesnap="cursor",
+        )
+        fig1.update_yaxes(
+            showspikes=True,
+            spikecolor="#808080",
+            spikethickness=1,
+            spikedash="dot",
+        )
 
         # Use the same title layout as fig3
         fig1.update_layout(
             hovermode="x unified",
+            hoverdistance=100,
+            spikedistance=-1,
             height=600,  # Adjust the height
             legend_title_text="Данни",
             title={
