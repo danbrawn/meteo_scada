@@ -8,11 +8,12 @@ $(document).ready(function() {
     { key: 'WIND_SPEED_1', name: 'Скорост на вятъра', unit: 'km/h' },
     { key: 'WIND_SPEED_2', name: 'Скорост на вятъра', unit: 'm/s' },
     { key: 'WIND_DIR', name: 'Посока на вятъра', unit: 'DEG' },
-    { key: 'RAIN', name: 'Валежи', unit: 'l/m²' },
+    { key: 'RADIATION', name: 'Слънчева радиация', unit: 'kWh/mm²' },
+    { key: 'RAIN', name: 'Валежи', unit: 'mm' },
     { key: 'T_AIR_14', name: 'Температура 14:00', unit: '°C' },
     { key: 'REL_HUM_14', name: 'Отн. влажност 14:00', unit: '%' },
     { key: 'P_REL_14', name: 'Отн. налягане 14:00', unit: 'hPa' },
-    { key: 'EVAPOR_DAY', name: 'Изпарение', unit: 'mm/d' }
+    { key: 'EVAPOR_DAY', name: 'Изпарение', unit: 'mm' }
   ];
   let days = [];
   function updateDays(year, month) {
@@ -76,7 +77,7 @@ $(document).ready(function() {
         for (let i = 0; i < days.length; i++) {
           const v = values[i];
           const num = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
-          row.push(v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: true }) : '');
+          row.push(v !== undefined && v !== null && !isNaN(num) ? num.toLocaleString('bg-BG', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) : '');
         }
         csv.push(row.join(';'));
     });

@@ -113,6 +113,10 @@ def makeHourData():
             lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
         )
         mean_values = numeric.mean().round(4)
+        if 'RAIN' in numeric.columns:
+            rain_series = numeric['RAIN'].dropna()
+            rain_total = float(rain_series.sum()) if not rain_series.empty else 0.0
+            mean_values['RAIN'] = round(rain_total, 4)
 
         # Update output_data with the mean values
         for col_name, value in mean_values.items():
