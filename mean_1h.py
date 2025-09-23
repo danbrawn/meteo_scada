@@ -114,6 +114,17 @@ def makeHourData():
         )
         mean_values = numeric.mean().round(4)
 
+        rain_total = None
+        if 'RAIN' in raw_data.columns:
+            rain_series = pd.to_numeric(
+                raw_data['RAIN'].astype(str).str.replace(',', '.'),
+                errors='coerce',
+            )
+            rain_total = float(rain_series.sum(skipna=True)) if not rain_series.empty else 0.0
+
+        if rain_total is not None:
+            mean_values['RAIN'] = round(rain_total, 4)
+
         # Update output_data with the mean values
         for col_name, value in mean_values.items():
             output_data.at[0, col_name] = value
@@ -143,20 +154,35 @@ def populateMean1hour():
         output_data[numeric_cols] = output_data[numeric_cols].apply(
             lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
         )
-        target_time = output_data.at[0, 'DateRef']
-        with engine.connect() as conn:
-            exists = conn.execute(
-                sa.text(f"SELECT 1 FROM {mean_1hour_table} WHERE DateRef = :dt LIMIT 1"),
-                {"dt": target_time}
-            ).scalar()
-        if exists:
-            print(f"Record for {target_time} already exists; skipping insert")
+        row_dict = output_data.iloc[0].to_dict()
+        record_time = row_dict.pop('DateRef')
+        row_dict = {
+            col: (None if pd.isna(value) else value) for col, value in row_dict.items()
+        }
+        if not row_dict:
+            print("No measurement columns to persist; skipping insert/update")
             return
 
-        # Now use to_sql() with your DataFrame
-        output_data.to_sql(mean_1hour_table, con=engine, if_exists='append', index=False)
-        # output_data.to_sql(mean_1hour_table, con=engine, if_exists='append', index=False,
-        #                    dtype={'Note': sqlalchemy.NVARCHAR(length=50)})
+        update_clause = ", ".join([f"{col} = :{col}" for col in row_dict.keys()])
+        params = {**row_dict, "dt": record_time}
+
+        with engine.begin() as conn:
+            exists = conn.execute(
+                sa.text(f"SELECT 1 FROM {mean_1hour_table} WHERE DateRef = :dt LIMIT 1"),
+                {"dt": record_time},
+            ).scalar()
+            if exists:
+                conn.execute(
+                    sa.text(
+                        f"UPDATE {mean_1hour_table} SET {update_clause} WHERE DateRef = :dt"
+                    ),
+                    params,
+                )
+            else:
+                insert_df = output_data.copy()
+                insert_df.at[0, 'DateRef'] = record_time
+                insert_df.to_sql(mean_1hour_table, con=conn, if_exists='append', index=False)
+
         print("populateMean1hour ok")
     except Exception as e:
         print(f"populateMean1hour {e}")

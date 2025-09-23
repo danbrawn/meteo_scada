@@ -181,6 +181,9 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Rename columns based on the mapping
     csv_data = csv_data.rename(columns=column_mapping)
 
+    if 'RAIN' not in csv_data.columns and 'RAIN_MINUTE' in csv_data.columns:
+        csv_data = csv_data.rename(columns={'RAIN_MINUTE': 'RAIN'})
+
     # Drop duplicate columns if any
     csv_data = csv_data.loc[:, ~csv_data.columns.duplicated()]
 
@@ -197,6 +200,12 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     for col in db_col_names:
         if col != 'DateRef' and col in csv_data.columns:
             csv_data[col] = pd.to_numeric(csv_data[col], errors='coerce')
+
+    # Convert rainfall intensity from mm/h to rainfall per minute in mm
+    if 'RAIN' in csv_data.columns:
+        csv_data['RAIN'] = csv_data['RAIN'] / 60.0
+    elif 'RAIN_MINUTE' in csv_data.columns:
+        csv_data['RAIN_MINUTE'] = csv_data['RAIN_MINUTE'] / 60.0
 
     # Ensure that all required columns are present in the DataFrame
     missing_cols = set(db_col_names) - set(csv_data.columns)

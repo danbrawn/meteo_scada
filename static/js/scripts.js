@@ -101,11 +101,13 @@ $(document).ready(function () {
         const columnGroups = {
             'Общи параметри на въздуха': ['T_AIR', 'T_INSIDE', 'REL_HUM', 'T_WATER', 'DEW_POINT'],
             'Параметри на вятъра': ['WIND_SPEED_1', 'WIND_SPEED_2', 'WIND_DIR', 'WIND_GUST'],
-            'Статистика за валежи': ['RAIN_MINUTE', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR'],
+            'Статистика за валежи': ['RAIN', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR'],
             'Атмосферно налягане': ['P_ABS', 'P_REL'],
             'Слънчева радиация': ['RADIATION'],
             'Изпарения': ['EVAPOR_MINUTE', 'EVAPOR_DAY']
         };
+
+        const rainfallKeys = new Set(['RAIN', 'RAIN_HOUR', 'RAIN_DAY', 'RAIN_MONTH', 'RAIN_YEAR']);
 
         const timestamp = data['DateRef'];
         if (timestamp) {
@@ -137,7 +139,13 @@ $(document).ready(function () {
                     }
                 }
 
-                const formatted = !isNaN(value) ? Number(value).toLocaleString('bg-BG', { maximumFractionDigits: 1 }) : value;
+                const isRainValue = rainfallKeys.has(key);
+                const formatted = !isNaN(value)
+                    ? Number(value).toLocaleString('bg-BG', {
+                        minimumFractionDigits: isRainValue ? 2 : 0,
+                        maximumFractionDigits: isRainValue ? 2 : 1
+                    })
+                    : value;
                 const dashboardItem = `
                     <div class="dashboard-item" style="${style}">
                         <div class="variable-name">${displayName} ${unit ? `[${unit}]` : ''}</div>
