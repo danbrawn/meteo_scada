@@ -129,13 +129,23 @@ def makeHourData():
         if rain_total is not None:
             mean_values['RAIN'] = round(rain_total, 4)
 
+        rain_total = None
+        if 'RAIN' in raw_data.columns:
+            rain_series = pd.to_numeric(
+                raw_data['RAIN'].astype(str).str.replace(',', '.'),
+                errors='coerce',
+            )
+            rain_total = float(rain_series.sum(skipna=True)) if not rain_series.empty else 0.0
+
+        if rain_total is not None:
+            mean_values['RAIN'] = round(rain_total, 4)
+
         # Update output_data with the mean values
         for col_name, value in mean_values.items():
             output_data.at[0, col_name] = value
 
-        # Set 'DateRef' for the output_data
-        # output_data.at[0, 'DateRef'] = start_time
-        output_data.at[0, 'DateRef'] = start_time + pd.Timedelta(hours=1)
+        # Set 'DateRef' for the output_data to the start of the aggregated hour
+        output_data.at[0, 'DateRef'] = start_time
 
     except Exception as e:
         print(f"makeHourData {e}")
