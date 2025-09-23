@@ -113,6 +113,21 @@ def makeHourData():
             lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
         )
         mean_values = numeric.mean().round(4)
+        if 'RAIN' in numeric.columns:
+            rain_series = numeric['RAIN'].dropna()
+            rain_total = float(rain_series.sum()) if not rain_series.empty else 0.0
+            mean_values['RAIN'] = round(rain_total, 4)
+
+        rain_total = None
+        if 'RAIN' in raw_data.columns:
+            rain_series = pd.to_numeric(
+                raw_data['RAIN'].astype(str).str.replace(',', '.'),
+                errors='coerce',
+            )
+            rain_total = float(rain_series.sum(skipna=True)) if not rain_series.empty else 0.0
+
+        if rain_total is not None:
+            mean_values['RAIN'] = round(rain_total, 4)
 
         rain_total = None
         if 'RAIN' in raw_data.columns:
