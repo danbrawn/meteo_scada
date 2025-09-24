@@ -35,7 +35,7 @@ import configparser
 import openpyxl
 from functools import wraps
 from contextlib import closing
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import insertMissingDataFromCSV
 from logging import FileHandler, WARNING
@@ -342,6 +342,40 @@ def _set_rainfall_totals(cursor, df_last_min_data: pd.DataFrame) -> pd.DataFrame
     return df_last_min_data
 
 
+def _compute_daily_evaporation_mean(
+    cursor, timestamp: pd.Timestamp
+) -> Optional[float]:
+    """Return the average evaporation intensity for the current day so far."""
+
+    if 'EVAPOR_MINUTE' not in RAW_DATA_COLUMNS or pd.isna(timestamp):
+        return None
+
+    last_dt = (
+        timestamp.to_pydatetime() if isinstance(timestamp, pd.Timestamp) else timestamp
+    )
+    day_start = last_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    query = (
+        f"SELECT AVG(EVAPOR_MINUTE) FROM {DB_TABLE_MIN} "
+        f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} <= %s"
+    )
+
+    try:
+        cursor.execute(query, (day_start, last_dt))
+        result = cursor.fetchone()
+    except Exception as exc:
+        logger.error(
+            f"Error computing daily evaporation average for {timestamp}: {exc}",
+            exc_info=True,
+        )
+        return None
+
+    if not result:
+        return None
+
+    value = result[0]
+    return float(value) if value is not None else None
+
+
 def _prepare_last_minute_output(df_last_min_data: pd.DataFrame) -> pd.DataFrame:
     df_last_min_values = df_last_min_data.reindex(columns=DATA_COLUMNS)
     df_last_min_values.reset_index(inplace=True)
@@ -377,6 +411,20 @@ def update_dataframes():
                     if not df_last_min_data.empty:
                         df_last_min_data = _set_rainfall_totals(cursor, df_last_min_data)
                         df_last_min_values = _prepare_last_minute_output(df_last_min_data)
+
+                        if 'EVAPOR_MINUTE' in df_last_min_data.columns:
+                            last_timestamp = df_last_min_data.index[-1]
+                            daily_evap = _compute_daily_evaporation_mean(
+                                cursor, last_timestamp
+                            )
+
+                            if (
+                                daily_evap is not None
+                                and 'EVAPOR_DAY' in df_last_min_values.columns
+                            ):
+                                df_last_min_values.loc[:, 'EVAPOR_DAY'] = round(
+                                    daily_evap, 1
+                                )
         except Exception as e:
             logger.error(f"Error updating dataframes: {e}", exc_info=True)
 
@@ -491,7 +539,7 @@ def graph_data():
                 rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
                 df_res = df_res.join(rad.rename('RADIATION'))
             if 'EVAPOR_MINUTE' in df.columns:
-                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('d').apply(_last_valid_value)
+                df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('d').mean()
             if 'RAIN' in df.columns:
                 rain_day = df['RAIN'].resample('d').sum(min_count=1)
                 df_res['RAIN'] = rain_day
@@ -923,7 +971,7 @@ def report_data_endpoint():
 
         if "EVAPOR_MINUTE" in df.columns:
             combined = combined.join(
-                df["EVAPOR_MINUTE"].resample("D").apply(_last_valid_value).rename("EVAPOR_DAY")
+                df["EVAPOR_MINUTE"].resample("D").mean().rename("EVAPOR_DAY")
             )
 
         if "RADIATION" in df.columns:
