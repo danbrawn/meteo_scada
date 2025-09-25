@@ -844,7 +844,7 @@ def _build_stats(period: str):
             total_energy = float(monthly_energy.sum()) if not monthly_energy.empty else 0.0
         result.append({
             "label": "Сума слънчева радиация",
-            "value": f"{format_number(total_energy)} kWh/mm²",
+            "value": f"{format_number(total_energy)} kWh/m²",
         })
 
     return result
