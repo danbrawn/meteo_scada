@@ -23,7 +23,7 @@ $(document).ready(function() {
         '365d': { dtick: 'M1', tickformat: '%b' }
       };
       const isEnergyUnit = period !== '24h';
-      const radiationUnit = isEnergyUnit ? 'kWh/mm²' : 'W/m²';
+      const radiationUnit = isEnergyUnit ? 'kWh/m²' : 'W/m²';
       const radiationHoverFormat = isEnergyUnit ? '.2f' : '.1f';
       const evaporationUnit = period === '24h' ? 'mm/day' : 'mm';
       const xAxisSpikeSettings = {
