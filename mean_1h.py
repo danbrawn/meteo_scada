@@ -7,6 +7,8 @@ import sys
 import numpy as np
 import configparser
 
+from wind_utils import direction_average, wind_vector_mean
+
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
     config = configparser.ConfigParser(interpolation=None)
@@ -113,6 +115,25 @@ def makeHourData():
             lambda s: pd.to_numeric(s.astype(str).str.replace(',', '.'), errors='coerce')
         )
         mean_values = numeric.mean().round(4)
+
+        wind_direction_mean = float('nan')
+        if 'WIND_DIR' in numeric.columns:
+            direction_series = numeric['WIND_DIR']
+            wind_speed_columns = [
+                col for col in numeric.columns if col.startswith('WIND_SPEED')
+            ]
+            for speed_col in wind_speed_columns:
+                speed_mean, dir_mean = wind_vector_mean(numeric[speed_col], direction_series)
+                if not np.isnan(speed_mean):
+                    mean_values[speed_col] = round(speed_mean, 4)
+                if np.isnan(wind_direction_mean) and not np.isnan(dir_mean):
+                    wind_direction_mean = dir_mean
+
+            if np.isnan(wind_direction_mean):
+                wind_direction_mean = direction_average(direction_series)
+
+            if not np.isnan(wind_direction_mean):
+                mean_values['WIND_DIR'] = round(wind_direction_mean, 2)
         if 'RAIN' in numeric.columns:
             rain_series = numeric['RAIN'].dropna()
             rain_total = float(rain_series.sum()) if not rain_series.empty else 0.0
