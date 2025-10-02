@@ -43,6 +43,21 @@ from logging import FileHandler, WARNING
 import threading
 import time
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+def resource_path(relative_path: str) -> str:
+    """Resolve resource paths for both source and PyInstaller builds."""
+    candidates = []
+    if hasattr(sys, '_MEIPASS'):
+        candidates.append(os.path.join(sys._MEIPASS, relative_path))
+    if getattr(sys, 'frozen', False):
+        candidates.append(os.path.join(os.path.dirname(sys.executable), relative_path))
+    candidates.append(os.path.join(current_dir, relative_path))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[-1]
 # Create a logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -146,7 +161,8 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
         df['RAIN'] = pd.to_numeric(df['RAIN'], errors='coerce')
     if 'EVAPOR_MINUTE' in df.columns:
         df['EVAPOR_MINUTE'] = pd.to_numeric(df['EVAPOR_MINUTE'], errors='coerce')
-        df['EVAPOR_DAY'] = df['EVAPOR_MINUTE']
+        if 'EVAPOR_DAY' not in df.columns:
+            df['EVAPOR_DAY'] = np.nan
     return df
 # Function to establish a connection to the MySQL database
 def get_db_connection():
@@ -231,9 +247,8 @@ def get_active_alarms():
 
 #INitialize plot
 
-STATIC_FOLDER = os.path.join(current_dir, 'static')
-#TEMPLATES_FOLDER = os.path.join(current_dir, 'templates')
-template_dir = os.path.abspath('templates')
+STATIC_FOLDER = resource_path('static')
+template_dir = resource_path('templates')
 app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder=template_dir)
 #app = Flask(__name__, template_folder=template_dir)
 #app = Flask(__name__)
@@ -1072,7 +1087,7 @@ def report_data_endpoint():
     year = request.args.get('year', type=int)
     month = request.args.get('month', type=int)
 
-    today_day = datetime.today().day
+    today = datetime.today().date()
     if not year or not month:
         return jsonify({})
     try:
@@ -1101,10 +1116,13 @@ def report_data_endpoint():
         query = (
             f"SELECT {DATE_COLUMN}, {', '.join(cols)} FROM {DB_TABLE} "
             f"WHERE YEAR({DATE_COLUMN}) = %s AND MONTH({DATE_COLUMN}) = %s "
-            f"AND DAY({DATE_COLUMN}) < %s "
-            f"ORDER BY {DATE_COLUMN} ASC"
         )
-        cursor.execute(query, (year, month, today_day))
+        params = [year, month]
+        if year == today.year and month == today.month:
+            query += f"AND DATE({DATE_COLUMN}) < %s "
+            params.append(today)
+        query += f"ORDER BY {DATE_COLUMN} ASC"
+        cursor.execute(query, params)
         data = cursor.fetchall()
         cursor.close()
         db_connection.close()
