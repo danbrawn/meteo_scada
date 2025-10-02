@@ -697,7 +697,7 @@ def _wind_vector_resample(
     return pd.DataFrame(rows, index=resampled_index)
 
 
-def _build_stats(period: str):
+def _period_bounds(period: str):
     now = datetime.now()
     if period == 'today':
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -711,189 +711,322 @@ def _build_stats(period: str):
     else:
         start = None
         end = None
+    return start, end
 
+
+def _range_conditions(start: Optional[datetime], end: Optional[datetime]):
+    conditions: List[str] = []
+    params: List[datetime] = []
+    if start is not None:
+        conditions.append(f"{DATE_COLUMN} >= %s")
+        params.append(start)
+    if end is not None:
+        conditions.append(f"{DATE_COLUMN} < %s")
+        params.append(end)
+    return conditions, params
+
+
+def _compose_where_clause(conditions: List[str]) -> str:
+    if not conditions:
+        return ''
+    return 'WHERE ' + ' AND '.join(conditions)
+
+
+def _to_float(value):
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
     try:
-        db_connection = get_db_connection()
-        cursor = db_connection.cursor()
-        query = (
-            f"SELECT {DATE_COLUMN}, T_AIR, T_WATER, REL_HUM, P_REL, P_ABS, WIND_GUST, WIND_DIR, RAIN, EVAPOR_MINUTE, RADIATION "
-            f"FROM {DB_TABLE_MIN}"
-        )
-        params = None
-        if start and end:
-            query += f" WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} < %s"
-            params = (
-                start.strftime('%Y-%m-%d %H:%M:%S'),
-                end.strftime('%Y-%m-%d %H:%M:%S'),
-            )
-        cursor.execute(query, params) if params else cursor.execute(query)
-        data = cursor.fetchall()
-        cursor.close()
-        db_connection.close()
-        df = pd.DataFrame(
-            data,
-            columns=[
-                DATE_COLUMN,
-                "T_AIR",
-                "T_WATER",
-                "REL_HUM",
-                "P_REL",
-                "P_ABS",
-                "WIND_GUST",
-                "WIND_DIR",
-                "RAIN",
-                "EVAPOR_MINUTE",
-                "RADIATION",
-            ],
-        )
-    except Exception as e:
-        logger.error(f"Database error while building stats: {e}", exc_info=True)
-        return []
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
-    if df.empty:
-        return []
 
-    for col in ['T_AIR', 'T_WATER', 'REL_HUM', 'P_REL', 'P_ABS', 'WIND_GUST', 'WIND_DIR', 'RAIN', 'EVAPOR_MINUTE', 'RADIATION']:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
-    df.set_index(DATE_COLUMN, inplace=True)
+DEW_POINT_SQL_EXPR = (
+    "CASE WHEN REL_HUM IS NULL OR REL_HUM <= 0 THEN NULL "
+    "WHEN (17.27 - (((17.27 * T_AIR) / (237.7 + T_AIR)) + LN(REL_HUM / 100.0))) = 0 THEN NULL "
+    "ELSE (237.7 * (((17.27 * T_AIR) / (237.7 + T_AIR)) + LN(REL_HUM / 100.0))) / "
+    "(17.27 - (((17.27 * T_AIR) / (237.7 + T_AIR)) + LN(REL_HUM / 100.0))) END"
+)
+
+
+def _query_extrema(
+    cursor,
+    column: str,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    *,
+    asc: bool = True,
+    expression: Optional[str] = None,
+    extra_columns: Optional[Sequence[str]] = None,
+    filters: Optional[Sequence[str]] = None,
+):
+    extra_columns = list(extra_columns or [])
+    conditions, params = _range_conditions(start, end)
+    if expression is None:
+        conditions.append(f"{column} IS NOT NULL")
+    if filters:
+        conditions.extend(filters)
+    where_clause = _compose_where_clause(conditions)
+    value_expr = expression or column
+    select_parts = [f"{value_expr} AS value"] + extra_columns + [DATE_COLUMN]
+    inner_query = (
+        f"SELECT {', '.join(select_parts)} FROM {DB_TABLE_MIN} {where_clause}"
+    )
+    query = (
+        f"SELECT * FROM ({inner_query}) AS stats "
+        f"WHERE value IS NOT NULL ORDER BY value {'ASC' if asc else 'DESC'} LIMIT 1"
+    )
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+    if not row:
+        return None
+    value = _to_float(row[0])
+    if value is None:
+        return None
+    extras: Dict[str, Optional[float]] = {}
+    for idx, col in enumerate(extra_columns):
+        extras[col] = _to_float(row[1 + idx]) if isinstance(row[1 + idx], (Decimal, int, float)) else row[1 + idx]
+    timestamp = row[1 + len(extra_columns)]
+    if timestamp is None:
+        return None
+    return {"value": value, "timestamp": timestamp, "extras": extras}
+
+
+def _query_sum(cursor, column: str, start: Optional[datetime], end: Optional[datetime]):
+    conditions, params = _range_conditions(start, end)
+    where_clause = _compose_where_clause(conditions)
+    query = f"SELECT SUM({column}) FROM {DB_TABLE_MIN} {where_clause}"
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return _to_float(row[0])
+
+
+def _query_last_value(cursor, column: str, start: Optional[datetime], end: Optional[datetime]):
+    conditions, params = _range_conditions(start, end)
+    conditions.append(f"{column} IS NOT NULL")
+    where_clause = _compose_where_clause(conditions)
+    query = (
+        f"SELECT {column}, {DATE_COLUMN} FROM {DB_TABLE_MIN} "
+        f"{where_clause} ORDER BY {DATE_COLUMN} DESC LIMIT 1"
+    )
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+    if not row:
+        return None
+    value = _to_float(row[0])
+    timestamp = row[1]
+    if value is None or timestamp is None:
+        return None
+    return {"value": value, "timestamp": timestamp}
+
+
+def _query_daily_sum_extrema(
+    cursor,
+    column: str,
+    start: Optional[datetime],
+    end: Optional[datetime],
+):
+    conditions, params = _range_conditions(start, end)
+    where_clause = _compose_where_clause(conditions)
+    query = (
+        f"SELECT DATE({DATE_COLUMN}) AS day, SUM({column}) AS total "
+        f"FROM {DB_TABLE_MIN} {where_clause} GROUP BY day HAVING total IS NOT NULL "
+        f"ORDER BY total DESC LIMIT 1"
+    )
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+    if not row:
+        return None
+    day, total = row
+    total_value = _to_float(total)
+    if total_value is None or day is None:
+        return None
+    if isinstance(day, datetime):
+        day_dt = day
+    else:
+        day_dt = datetime.combine(day, datetime.min.time())
+    return {"value": total_value, "timestamp": day_dt}
+
+
+def _build_stats(period: str, cursor):
+    start, end = _period_bounds(period)
 
     result = []
 
-    temp = _min_max_with_time(df, 'T_AIR')
-    if temp:
-        result.append({
-            "label": "Температура",
-            "value": [
-                f"мин {format_number(temp['min'])}°C ({temp['min_time']})",
-                f"макс {format_number(temp['max'])}°C ({temp['max_time']})",
-            ],
-        })
+    temp_min = _query_extrema(cursor, 'T_AIR', start, end, asc=True)
+    temp_max = _query_extrema(cursor, 'T_AIR', start, end, asc=False)
+    if temp_min and temp_max:
+        result.append(
+            {
+                "label": "Температура",
+                "value": [
+                    f"мин {format_number(temp_min['value'])}°C ({_format_dt(temp_min['timestamp'])})",
+                    f"макс {format_number(temp_max['value'])}°C ({_format_dt(temp_max['timestamp'])})",
+                ],
+            }
+        )
 
-    water = _min_max_with_time(df, 'T_WATER')
-    if water:
-        result.append({
-            "label": "Температура на водата",
-            "value": [
-                f"мин {format_number(water['min'])}°C ({water['min_time']})",
-                f"макс {format_number(water['max'])}°C ({water['max_time']})",
-            ],
-        })
+    water_min = _query_extrema(cursor, 'T_WATER', start, end, asc=True)
+    water_max = _query_extrema(cursor, 'T_WATER', start, end, asc=False)
+    if water_min and water_max:
+        result.append(
+            {
+                "label": "Температура на водата",
+                "value": [
+                    f"мин {format_number(water_min['value'])}°C ({_format_dt(water_min['timestamp'])})",
+                    f"макс {format_number(water_max['value'])}°C ({_format_dt(water_max['timestamp'])})",
+                ],
+            }
+        )
 
-    hum = _min_max_with_time(df, 'REL_HUM')
-    if hum:
-        result.append({
-            "label": "Относителна влажност",
-            "value": [
-                f"мин {format_number(hum['min'])}% ({hum['min_time']})",
-                f"макс {format_number(hum['max'])}% ({hum['max_time']})",
-            ],
-        })
+    hum_min = _query_extrema(cursor, 'REL_HUM', start, end, asc=True)
+    hum_max = _query_extrema(cursor, 'REL_HUM', start, end, asc=False)
+    if hum_min and hum_max:
+        result.append(
+            {
+                "label": "Относителна влажност",
+                "value": [
+                    f"мин {format_number(hum_min['value'])}% ({_format_dt(hum_min['timestamp'])})",
+                    f"макс {format_number(hum_max['value'])}% ({_format_dt(hum_max['timestamp'])})",
+                ],
+            }
+        )
 
-    if 'T_AIR' in df.columns and 'REL_HUM' in df.columns:
-        df['DEW_POINT'] = _dew_point(df['T_AIR'], df['REL_HUM'])
-        dew = _min_max_with_time(df, 'DEW_POINT')
-        if dew:
-            result.append({
+    dew_min = _query_extrema(
+        cursor,
+        'T_AIR',
+        start,
+        end,
+        asc=True,
+        expression=DEW_POINT_SQL_EXPR,
+    )
+    dew_max = _query_extrema(
+        cursor,
+        'T_AIR',
+        start,
+        end,
+        asc=False,
+        expression=DEW_POINT_SQL_EXPR,
+    )
+    if dew_min and dew_max:
+        result.append(
+            {
                 "label": "Точка на роса",
                 "value": [
-                    f"мин {format_number(dew['min'])}°C ({dew['min_time']})",
-                    f"макс {format_number(dew['max'])}°C ({dew['max_time']})",
+                    f"мин {format_number(dew_min['value'])}°C ({_format_dt(dew_min['timestamp'])})",
+                    f"макс {format_number(dew_max['value'])}°C ({_format_dt(dew_max['timestamp'])})",
                 ],
-            })
+            }
+        )
 
-    press_rel = _min_max_with_time(df, 'P_REL')
-    if press_rel:
-        result.append({
-            "label": "Относително налягане",
-            "value": [
-                f"мин {format_number(press_rel['min'])} hPa ({press_rel['min_time']})",
-                f"макс {format_number(press_rel['max'])} hPa ({press_rel['max_time']})",
-            ],
-        })
+    press_rel_min = _query_extrema(cursor, 'P_REL', start, end, asc=True)
+    press_rel_max = _query_extrema(cursor, 'P_REL', start, end, asc=False)
+    if press_rel_min and press_rel_max:
+        result.append(
+            {
+                "label": "Относително налягане",
+                "value": [
+                    f"мин {format_number(press_rel_min['value'])} hPa ({_format_dt(press_rel_min['timestamp'])})",
+                    f"макс {format_number(press_rel_max['value'])} hPa ({_format_dt(press_rel_max['timestamp'])})",
+                ],
+            }
+        )
 
-    press_abs = _min_max_with_time(df, 'P_ABS')
-    if press_abs:
-        result.append({
-            "label": "Абсолютно налягане",
-            "value": [
-                f"мин {format_number(press_abs['min'])} hPa ({press_abs['min_time']})",
-                f"макс {format_number(press_abs['max'])} hPa ({press_abs['max_time']})",
-            ],
-        })
+    press_abs_min = _query_extrema(cursor, 'P_ABS', start, end, asc=True)
+    press_abs_max = _query_extrema(cursor, 'P_ABS', start, end, asc=False)
+    if press_abs_min and press_abs_max:
+        result.append(
+            {
+                "label": "Абсолютно налягане",
+                "value": [
+                    f"мин {format_number(press_abs_min['value'])} hPa ({_format_dt(press_abs_min['timestamp'])})",
+                    f"макс {format_number(press_abs_max['value'])} hPa ({_format_dt(press_abs_max['timestamp'])})",
+                ],
+            }
+        )
 
-    gust_series = df['WIND_GUST'].dropna()
-    if not gust_series.empty:
-        gust_value = float(gust_series.max())
-        gust_time = gust_series.idxmax()
-        direction = None
-        if 'WIND_DIR' in df.columns:
-            dir_val = df.loc[gust_time, 'WIND_DIR']
-            if isinstance(dir_val, pd.Series):
-                dir_val = dir_val.iloc[0]
-            direction = dir_val
-        dir_text = f", посока {direction}" if pd.notnull(direction) else ''
-        result.append({
-            "label": "Порив на вятъра",
-            "value": f"макс {format_number(gust_value)} km/h{dir_text} ({_format_dt(gust_time)})",
-        })
+    gust = _query_extrema(
+        cursor,
+        'WIND_GUST',
+        start,
+        end,
+        asc=False,
+        extra_columns=['WIND_DIR'],
+    )
+    if gust:
+        direction = gust['extras'].get('WIND_DIR') if gust['extras'] else None
+        if isinstance(direction, float) and np.isnan(direction):
+            direction = None
+        dir_text = f", посока {direction}" if direction is not None else ''
+        result.append(
+            {
+                "label": "Порив на вятъра",
+                "value": f"макс {format_number(gust['value'])} km/h{dir_text} ({_format_dt(gust['timestamp'])})",
+            }
+        )
 
-    rain_total = df['RAIN'].dropna().sum() if 'RAIN' in df.columns else 0.0
+    rain_total = _query_sum(cursor, 'RAIN', start, end)
     if rain_total:
-        label = "Сума валежи за деня" if period == 'today' else "Сума валежи"
-        result.append({
-            "label": "Сума валежи",
-            "value": f"{format_number(rain_total)} mm",
-        })
+        result.append(
+            {
+                "label": "Сума валежи",
+                "value": f"{format_number(rain_total)} mm",
+            }
+        )
 
-    evap_series = df['EVAPOR_MINUTE'].dropna()
-    if not evap_series.empty:
-        evap_value = float(evap_series.iloc[-1])
-        label = "Изпарение" if period == 'today' else "Изпарение"
+    evap = _query_last_value(cursor, 'EVAPOR_MINUTE', start, end)
+    if evap is not None:
         unit = "mm" if period == 'today' else "mm/day"
-        result.append({
-            "label": label,
-            "value": f"{format_number(evap_value)} {unit}",
-        })
+        result.append(
+            {
+                "label": "Изпарение",
+                "value": f"{format_number(evap['value'])} {unit}",
+            }
+        )
 
-    if period != 'today' and 'RAIN' in df.columns and not df['RAIN'].dropna().empty:
-        daily_rain = df['RAIN'].resample('D').sum()
-        max_day = daily_rain.max()
-        max_day_time = _format_dt(daily_rain.idxmax())
-        result.append({
-            "label": "Макс за ден",
-            "value": f"{format_number(max_day)} mm ({max_day_time})",
-        })
-        intensity_series = df['RAIN'].dropna()
-        if not intensity_series.empty:
-            intensity_value = float(intensity_series.max())
-            intensity_time = intensity_series.idxmax()
-            result.append({
-                "label": "Макс интензитет",
-                "value": f"{format_number(intensity_value)} mm ({_format_dt(intensity_time)})",
-            })
+    if period != 'today':
+        max_daily_rain = _query_daily_sum_extrema(cursor, 'RAIN', start, end)
+        if max_daily_rain:
+            result.append(
+                {
+                    "label": "Макс за ден",
+                    "value": f"{format_number(max_daily_rain['value'])} mm ({_format_dt(max_daily_rain['timestamp'])})",
+                }
+            )
 
-    rad_series = df['RADIATION'].dropna()
-    if not rad_series.empty:
-        rad_max = float(rad_series.max())
-        rad_time = rad_series.idxmax()
-        result.append({
-            "label": "Слънчева радиация",
-            "value": f"макс {format_number(rad_max)} W/m² ({_format_dt(rad_time)})",
-        })
-        daily_energy = rad_series.resample('D').sum() * KWH_PER_M2_FROM_MINUTE
-        if daily_energy.empty:
-            total_energy = 0.0
-        elif period in {'today', 'month'}:
-            total_energy = float(daily_energy.sum())
-        else:
-            monthly_energy = daily_energy.resample('ME').sum()
-            total_energy = float(monthly_energy.sum()) if not monthly_energy.empty else 0.0
-        result.append({
-            "label": "Сума слънчева радиация",
-            "value": f"{format_number(total_energy)} kWh/m²",
-        })
+        rain_intensity = _query_extrema(cursor, 'RAIN', start, end, asc=False)
+        if rain_intensity:
+            result.append(
+                {
+                    "label": "Макс интензитет",
+                    "value": f"{format_number(rain_intensity['value'])} mm ({_format_dt(rain_intensity['timestamp'])})",
+                }
+            )
+
+    radiation_max = _query_extrema(cursor, 'RADIATION', start, end, asc=False)
+    if radiation_max:
+        result.append(
+            {
+                "label": "Слънчева радиация",
+                "value": f"макс {format_number(radiation_max['value'])} W/m² ({_format_dt(radiation_max['timestamp'])})",
+            }
+        )
+
+    radiation_sum = _query_sum(cursor, 'RADIATION', start, end)
+    if radiation_sum is not None:
+        energy = radiation_sum * KWH_PER_M2_FROM_MINUTE
+        result.append(
+            {
+                "label": "Сума слънчева радиация",
+                "value": f"{format_number(energy)} kWh/m²",
+            }
+        )
 
     return result
 
@@ -901,17 +1034,29 @@ def _build_stats(period: str):
 @app.route('/statistics_data')
 @login_required
 def statistics_data():
+    connection = None
+    cursor = None
     try:
-        data = {
-            'today': _build_stats('today'),
-            'month': _build_stats('month'),
-            'year': _build_stats('year'),
-            'all': _build_stats('all'),
-        }
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        data = {}
+        for period in ('today', 'month', 'year', 'all'):
+            data[period] = _build_stats(period, cursor)
         return jsonify(data)
     except Exception as e:
         logger.error(f"Error in /statistics_data endpoint: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
 
 
 @app.route('/report')
