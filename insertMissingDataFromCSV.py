@@ -282,6 +282,7 @@ def main():
         return
 
     # Track the latest timestamp from newly inserted minute data
+    earliest_new_datetime = None
     latest_new_datetime = None
 
     # Process and insert each downloaded CSV file
@@ -321,7 +322,10 @@ def main():
                 print(f"No new data in file {csv_file}. Skipping.")
                 continue
 
-            # Track the latest timestamp for the new data
+            # Track the timestamp range for the new data
+            current_min = csv_data_filtered['DateRef'].min()
+            if earliest_new_datetime is None or current_min < earliest_new_datetime:
+                earliest_new_datetime = current_min
             current_max = csv_data_filtered['DateRef'].max()
             if latest_new_datetime is None or current_max > latest_new_datetime:
                 latest_new_datetime = current_max
@@ -346,16 +350,26 @@ def main():
                 latest_new_datetime.replace(minute=0, second=0, microsecond=0)
                 - timedelta(hours=1)
             )
-            if last_hour_record is None:
-                current_hour = latest_completed_hour
+
+            if earliest_new_datetime is None:
+                first_unprocessed_hour = latest_completed_hour
             else:
+                first_unprocessed_hour = earliest_new_datetime.replace(
+                    minute=0, second=0, microsecond=0
+                )
+
+            if last_hour_record is not None:
                 current_hour = (
                     last_hour_record.replace(minute=0, second=0, microsecond=0)
                     + timedelta(hours=1)
                 )
+                if current_hour < first_unprocessed_hour:
+                    current_hour = first_unprocessed_hour
+            else:
+                current_hour = first_unprocessed_hour
 
             while current_hour is not None and current_hour <= latest_completed_hour:
-                call_mean_hourly(current_hour, current_hour)
+                call_mean_hourly(current_hour, current_hour + timedelta(hours=1))
                 current_hour += timedelta(hours=1)
     except Exception as e:
         logging.error(f"Error calculating hourly mean: {e}")
