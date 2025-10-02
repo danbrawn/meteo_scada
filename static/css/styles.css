@@ -591,8 +591,6 @@ body {
   background: #fff;
   padding: 10px;
   border-radius: 8px;
-  display: flex;
-  justify-content: center;
 }
 
 #report-table {
@@ -601,7 +599,7 @@ body {
   min-width: 0;
   font-size: 12px;
   background: #fff;
-  margin: 0 auto;
+  margin: 0;
 }
 
 #report-table th,
@@ -618,6 +616,10 @@ body {
   background: #62bf8f;
   color: #fff;
   z-index: 2;
+}
+
+#report-table thead th.sticky-col {
+  z-index: 4;
 }
 
 #report-table thead th {
