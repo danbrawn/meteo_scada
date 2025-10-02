@@ -147,30 +147,8 @@ def makeHourData():
                 mean_values['WIND_DIR'] = round(wind_direction_mean, 2)
         if 'RAIN' in numeric.columns:
             rain_series = numeric['RAIN'].dropna()
-            rain_total = float(rain_series.sum()) if not rain_series.empty else 0.0
-            mean_values['RAIN'] = round(rain_total, 4)
-
-        rain_total = None
-        if 'RAIN' in raw_data.columns:
-            rain_series = pd.to_numeric(
-                raw_data['RAIN'].astype(str).str.replace(',', '.'),
-                errors='coerce',
-            )
-            rain_total = float(rain_series.sum(skipna=True)) if not rain_series.empty else 0.0
-
-        if rain_total is not None:
-            mean_values['RAIN'] = round(rain_total, 4)
-
-        rain_total = None
-        if 'RAIN' in raw_data.columns:
-            rain_series = pd.to_numeric(
-                raw_data['RAIN'].astype(str).str.replace(',', '.'),
-                errors='coerce',
-            )
-            rain_total = float(rain_series.sum(skipna=True)) if not rain_series.empty else 0.0
-
-        if rain_total is not None:
-            mean_values['RAIN'] = round(rain_total, 4)
+            rain_mean = float(rain_series.mean()) if not rain_series.empty else 0.0
+            mean_values['RAIN'] = round(rain_mean, 4)
 
         # Update output_data with the mean values
         for col_name, value in mean_values.items():
