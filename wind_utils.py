@@ -1,3 +1,4 @@
+
 """Utility helpers for computing wind speed and direction statistics."""
 from __future__ import annotations
 from dataclasses import dataclass
@@ -95,3 +96,4 @@ def calculate_wind_stats(
         consistency = resultant_speed / scalar_mean
 
     return WindStats(scalar_mean, resultant_speed, mean_direction, consistency)
+
