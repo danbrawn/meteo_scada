@@ -1126,7 +1126,7 @@ def plot():
 
         # Wind Rose Plot for wind direction and speed
         wind_angle = my_df['WIND_DIR']
-        wind_speed = my_df['WIND_SPEED_1']
+        wind_speed = my_df['WIND_SPEED_2']
 
 
         # Example wind speed and direction data
