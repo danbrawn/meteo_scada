@@ -161,7 +161,8 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
         df['RAIN'] = pd.to_numeric(df['RAIN'], errors='coerce')
     if 'EVAPOR_MINUTE' in df.columns:
         df['EVAPOR_MINUTE'] = pd.to_numeric(df['EVAPOR_MINUTE'], errors='coerce')
-        df['EVAPOR_DAY'] = df['EVAPOR_MINUTE']
+        if 'EVAPOR_DAY' not in df.columns:
+            df['EVAPOR_DAY'] = np.nan
     return df
 # Function to establish a connection to the MySQL database
 def get_db_connection():
