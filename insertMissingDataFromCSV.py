@@ -201,11 +201,7 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
         if col != 'DateRef' and col in csv_data.columns:
             csv_data[col] = pd.to_numeric(csv_data[col], errors='coerce')
 
-    # Convert rainfall intensity from mm/h to rainfall per minute in mm
-    if 'RAIN' in csv_data.columns:
-        csv_data['RAIN'] = csv_data['RAIN'] / 60.0
-    elif 'RAIN_MINUTE' in csv_data.columns:
-        csv_data['RAIN_MINUTE'] = csv_data['RAIN_MINUTE'] / 60.0
+    # Keep rainfall values as mm/h intensity so raw_1min stores the direct readings
 
     # Ensure that all required columns are present in the DataFrame
     missing_cols = set(db_col_names) - set(csv_data.columns)
