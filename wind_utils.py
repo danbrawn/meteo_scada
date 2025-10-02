@@ -1,142 +1,99 @@
-"""Utility helpers for computing wind vector statistics.
 
-The functions in this module are shared between the hourly aggregation
-script and the Flask application so that both components calculate wind
-statistics in the exact same way.
-"""
+"""Utility helpers for computing wind speed and direction statistics."""
 from __future__ import annotations
-
-from typing import Iterable, List, MutableMapping, Sequence, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 
-def _to_series(values: Iterable[float]) -> pd.Series:
-    """Convert *values* to a numeric pandas Series.
+@dataclass
+class WindStats:
+    """Container for aggregated wind statistics."""
 
-    Any value that cannot be coerced to a float will be converted to ``NaN``
-    which allows downstream logic to drop it safely.
-    """
+    mean_speed_scalar: float
+    mean_speed_resultant: float
+    mean_dir: float
+    R: float
 
-    if isinstance(values, pd.Series):
-        series = values.copy()
-    else:
-        series = pd.Series(list(values))
-    return pd.to_numeric(series, errors="coerce")
-
-
-def direction_average(values: Iterable[float]) -> float:
-    """Return the average wind direction for *values*.
-
-    The calculation converts directions to vectors on the unit circle and
-    averages their sine and cosine components.  The result is expressed in
-    degrees within the [0, 360) range.  If *values* does not contain any
-    finite numbers the function returns ``numpy.nan``.
-    """
-
-    series = _to_series(values).dropna()
-    if series.empty:
-        return float("nan")
-
-    radians = np.deg2rad(series)
-    sin_sum = np.sin(radians).sum()
-    cos_sum = np.cos(radians).sum()
-    if np.isclose(sin_sum, 0.0) and np.isclose(cos_sum, 0.0):
-        return float("nan")
-
-    angle = np.degrees(np.arctan2(sin_sum, cos_sum))
-    return float((angle + 360.0) % 360.0)
+    def to_dict(self) -> dict:
+        return {
+            "mean_speed_scalar": self.mean_speed_scalar,
+            "mean_speed_resultant": self.mean_speed_resultant,
+            "mean_dir": self.mean_dir,
+            "R": self.R,
+        }
 
 
-def wind_vector_mean(
-    speeds: Iterable[float],
-    directions: Iterable[float],
-) -> Tuple[float, float]:
-    """Compute the vector mean of wind *speeds* and *directions*.
+def _prepare_wind_components(
+    speeds: pd.Series, directions: pd.Series
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Prepare filtered speed and direction arrays and their radian representation."""
+    speeds_values = pd.to_numeric(speeds, errors="coerce").to_numpy(dtype=float)
+    directions_values = pd.to_numeric(directions, errors="coerce").to_numpy(dtype=float)
 
-    The result is a tuple ``(mean_speed, mean_direction)``.  The mean speed
-    is calculated from the averaged vector components which ensures that the
-    magnitude properly reflects the vector nature of the signal.  The
-    direction is derived from the same vector.  If there are no valid pairs
-    of observations the function returns ``(nan, nan)``.  When valid
-    directions exist but all speed values are missing, the function falls
-    back to :func:`direction_average` for the angle and returns ``nan`` for
-    the speed component.
-    """
-
-    series = pd.DataFrame({"speed": speeds, "direction": directions})
-    series["speed"] = pd.to_numeric(series["speed"], errors="coerce")
-    series["direction"] = pd.to_numeric(series["direction"], errors="coerce")
-    series = series.dropna(subset=["direction"])
-
-    if series.empty:
-        return float("nan"), float("nan")
-
-    if series["speed"].isna().all():
-        return float("nan"), direction_average(series["direction"])
-
-    series = series.dropna(subset=["speed"])
-    if series.empty:
-        return float("nan"), float("nan")
-
-    radians = np.deg2rad(series["direction"])
-    u = (series["speed"] * np.cos(radians)).sum()
-    v = (series["speed"] * np.sin(radians)).sum()
-
-    mean_speed = np.hypot(u, v) / len(series)
-    if np.isclose(u, 0.0) and np.isclose(v, 0.0):
-        mean_direction = direction_average(series["direction"])
-    else:
-        mean_direction = float((np.degrees(np.arctan2(v, u)) + 360.0) % 360.0)
-
-    return float(mean_speed), float(mean_direction)
+    valid_mask = (~np.isnan(speeds_values)) & (~np.isnan(directions_values))
+    return speeds_values, directions_values, np.radians(directions_values[valid_mask])
 
 
-def wind_vector_resample(
+def calculate_wind_stats(
     df: pd.DataFrame,
-    freq: str,
-    *,
-    direction_column: str,
-    speed_columns: Sequence[str],
-) -> pd.DataFrame:
-    """Resample wind measurements contained in ``df``.
+    speed_col: str = "WIND_SPEED",
+    dir_col: str = "WIND_ANGLE",
+) -> WindStats:
+    """Calculate aggregated wind statistics for the provided dataframe.
 
-    The returned dataframe has the same columns as ``speed_columns`` plus the
-    ``direction_column`` (if present in *df*) and contains vector means for
-    each resampled period.
+    Parameters
+    ----------
+    df:
+        DataFrame containing wind data.
+    speed_col:
+        Column name containing wind speed values (m/s).
+    dir_col:
+        Column name containing wind direction values (degrees).
+
+    Returns
+    -------
+    WindStats
+        Dataclass with scalar mean speed, resultant mean speed, mean direction and
+        the consistency coefficient ``R``.
     """
+    if speed_col not in df.columns or dir_col not in df.columns:
+        return WindStats(np.nan, np.nan, np.nan, np.nan)
 
-    available_speeds: List[str] = [col for col in speed_columns if col in df.columns]
-    include_direction = direction_column in df.columns
+    speeds_values, directions_values, rad = _prepare_wind_components(
+        df[speed_col], df[dir_col]
+    )
 
-    resampled_index = df.resample(freq).mean().index
-    if not available_speeds and not include_direction:
-        return pd.DataFrame(index=resampled_index)
+    valid_mask = (~np.isnan(speeds_values)) & (~np.isnan(directions_values))
 
-    if not include_direction:
-        return df[available_speeds].resample(freq).mean()
+    if not np.any(valid_mask):
+        if speeds_values.size == 0 or np.all(np.isnan(speeds_values)):
+            scalar_mean = np.nan
+        else:
+            scalar_mean = float(np.nanmean(speeds_values))
+        return WindStats(scalar_mean, np.nan, np.nan, np.nan)
 
-    rows: List[MutableMapping[str, float]] = []
-    for _, group in df.resample(freq):
-        row: MutableMapping[str, float] = {}
-        direction_series = (
-            group[direction_column] if include_direction else pd.Series(dtype=float)
-        )
+    speeds_valid = speeds_values[valid_mask]
 
-        computed_direction = float("nan")
-        for speed_col in available_speeds:
-            speed_mean, dir_mean = wind_vector_mean(group[speed_col], direction_series)
-            row[speed_col] = speed_mean
-            if not np.isnan(dir_mean):
-                computed_direction = dir_mean
+    u = speeds_valid * np.cos(rad)
+    v = speeds_valid * np.sin(rad)
 
-        if include_direction:
-            if np.isnan(computed_direction):
-                computed_direction = direction_average(direction_series)
-            row[direction_column] = computed_direction
+    u_mean = u.mean() if u.size else np.nan
+    v_mean = v.mean() if v.size else np.nan
 
-        rows.append(row)
+    resultant_speed = float(np.sqrt(u_mean**2 + v_mean**2)) if u.size else np.nan
+    mean_direction = float((np.degrees(np.arctan2(v_mean, u_mean))) % 360) if u.size else np.nan
 
-    result = pd.DataFrame(rows, index=resampled_index)
-    return result
+    if speeds_values.size == 0 or np.all(np.isnan(speeds_values)):
+        scalar_mean = np.nan
+    else:
+        scalar_mean = float(np.nanmean(speeds_values))
+
+    if np.isnan(resultant_speed) or np.isnan(scalar_mean) or scalar_mean == 0:
+        consistency = np.nan
+    else:
+        consistency = resultant_speed / scalar_mean
+
+    return WindStats(scalar_mean, resultant_speed, mean_direction, consistency)
+

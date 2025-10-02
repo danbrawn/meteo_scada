@@ -38,7 +38,7 @@ from contextlib import closing
 from typing import Dict, List, Optional, Sequence
 
 import insertMissingDataFromCSV
-from wind_utils import wind_vector_resample
+from wind_utils import calculate_wind_stats
 from logging import FileHandler, WARNING
 import threading
 import time
@@ -649,12 +649,52 @@ def _wind_vector_resample(
 ) -> pd.DataFrame:
     if speed_columns is None:
         speed_columns = [col for col in df.columns if col.startswith("WIND_SPEED")]
-    return wind_vector_resample(
-        df,
-        freq,
-        direction_column=direction_column,
-        speed_columns=speed_columns,
-    )
+
+    available_speeds = [col for col in speed_columns if col in df.columns]
+    include_direction = direction_column in df.columns
+
+    resampled_groups = df.resample(freq)
+    resampled_index = resampled_groups.mean().index
+
+    if not available_speeds and not include_direction:
+        return pd.DataFrame(index=resampled_index)
+
+    rows = []
+    for _, group in resampled_groups:
+        row: Dict[str, float] = {}
+        computed_direction = np.nan
+        for speed_col in available_speeds:
+            if include_direction:
+                subset = group[[speed_col, direction_column]].copy()
+                stats = calculate_wind_stats(
+                    subset, speed_col=speed_col, dir_col=direction_column
+                )
+                row[speed_col] = stats.mean_speed_resultant
+                if np.isnan(computed_direction) and not np.isnan(stats.mean_dir):
+                    computed_direction = stats.mean_dir
+            else:
+                row[speed_col] = pd.to_numeric(group[speed_col], errors="coerce").mean()
+
+        if include_direction:
+            if np.isnan(computed_direction):
+                direction_series = pd.to_numeric(
+                    group[direction_column], errors="coerce"
+                )
+                direction_only_df = pd.DataFrame(
+                    {
+                        "_unit_speed": np.where(direction_series.notna(), 1.0, np.nan),
+                        direction_column: direction_series,
+                    }
+                )
+                stats = calculate_wind_stats(
+                    direction_only_df, speed_col="_unit_speed", dir_col=direction_column
+                )
+                computed_direction = stats.mean_dir
+            row[direction_column] = computed_direction
+
+        rows.append(row)
+
+    return pd.DataFrame(rows, index=resampled_index)
 
 
 def _build_stats(period: str):
