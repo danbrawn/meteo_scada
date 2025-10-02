@@ -38,7 +38,7 @@ from contextlib import closing
 from typing import Dict, List, Optional, Sequence
 
 import insertMissingDataFromCSV
-from wind_utils import direction_average, wind_vector_resample
+from wind_utils import wind_vector_resample
 from logging import FileHandler, WARNING
 import threading
 import time
@@ -618,12 +618,8 @@ def format_number(val: float) -> str:
         whole = whole[:-3]
     whole_with_space = ' '.join(reversed(groups))
     return f"{sign}{whole_with_space},{frac}"
-
-
-def _vector_average(series: pd.Series) -> float:
-    return direction_average(series)
-
-
+  
+  
 def _last_valid_value(series: pd.Series) -> float:
     values = pd.to_numeric(series, errors="coerce").dropna()
     if values.empty:
