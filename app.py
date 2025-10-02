@@ -35,9 +35,10 @@ import configparser
 import openpyxl
 from functools import wraps
 from contextlib import closing
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 import insertMissingDataFromCSV
+from wind_utils import direction_average, wind_vector_resample
 from logging import FileHandler, WARNING
 import threading
 import time
@@ -525,16 +526,20 @@ def graph_data():
 
         if period == '24h':
             df_res = df.resample('h').mean()
-            if 'WIND_DIR' in df.columns:
-                df_res['WIND_DIR'] = df['WIND_DIR'].resample('h').apply(_vector_average)
+            wind_res = _wind_vector_resample(df, 'h')
+            if not wind_res.empty:
+                df_res = df_res.drop(columns=wind_res.columns.intersection(df_res.columns), errors='ignore')
+                df_res = df_res.join(wind_res)
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
             if 'RAIN' in df.columns:
                 df_res['RAIN'] = df['RAIN'].resample('h').sum(min_count=1)
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
-            if 'WIND_DIR' in df.columns:
-                df_res['WIND_DIR'] = df['WIND_DIR'].resample('d').apply(_vector_average)
+            wind_res = _wind_vector_resample(df, 'd')
+            if not wind_res.empty:
+                df_res = df_res.drop(columns=wind_res.columns.intersection(df_res.columns), errors='ignore')
+                df_res = df_res.join(wind_res)
             if 'RADIATION' in df.columns:
                 rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
                 df_res = df_res.join(rad.rename('RADIATION'))
@@ -545,8 +550,10 @@ def graph_data():
                 df_res['RAIN'] = rain_day
         else:
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('ME').mean()
-            if 'WIND_DIR' in df.columns:
-                df_res['WIND_DIR'] = df['WIND_DIR'].resample('ME').apply(_vector_average)
+            wind_res = _wind_vector_resample(df, 'ME')
+            if not wind_res.empty:
+                df_res = df_res.drop(columns=wind_res.columns.intersection(df_res.columns), errors='ignore')
+                df_res = df_res.join(wind_res)
             if 'RADIATION' in df.columns:
                 daily_rad = df['RADIATION'].resample('d').sum(min_count=1) * KWH_PER_M2_FROM_HOUR
                 rad = daily_rad.resample('ME').sum(min_count=1)
@@ -614,18 +621,7 @@ def format_number(val: float) -> str:
 
 
 def _vector_average(series: pd.Series) -> float:
-    values = pd.to_numeric(series, errors='coerce').dropna()
-    if values.empty:
-        return np.nan
-    radians = np.deg2rad(values)
-    sin_sum = np.sin(radians).sum()
-    cos_sum = np.cos(radians).sum()
-    if sin_sum == 0 and cos_sum == 0:
-        return np.nan
-    angle = np.degrees(np.arctan2(sin_sum, cos_sum))
-    if angle < 0:
-        angle += 360
-    return angle
+    return direction_average(series)
 
 
 def _last_valid_value(series: pd.Series) -> float:
@@ -647,6 +643,22 @@ def _dew_point(temp_c: pd.Series, rel_hum: pd.Series) -> pd.Series:
         alpha = (a * temp_c / (b + temp_c)) + np.log(safe_humidity / 100.0)
     dew_point = (b * alpha) / (a - alpha)
     return dew_point.where(safe_humidity.notna())
+
+
+def _wind_vector_resample(
+    df: pd.DataFrame,
+    freq: str,
+    direction_column: str = "WIND_DIR",
+    speed_columns: Optional[Sequence[str]] = None,
+) -> pd.DataFrame:
+    if speed_columns is None:
+        speed_columns = [col for col in df.columns if col.startswith("WIND_SPEED")]
+    return wind_vector_resample(
+        df,
+        freq,
+        direction_column=direction_column,
+        speed_columns=speed_columns,
+    )
 
 
 def _build_stats(period: str):
@@ -960,9 +972,11 @@ def report_data_endpoint():
         ]
         if mean_cols:
             combined = combined.join(df[mean_cols].resample("D").mean())
-        if "WIND_DIR" in df.columns:
-            wind_daily = df["WIND_DIR"].resample("D").apply(_vector_average)
-            combined = combined.join(wind_daily.rename("WIND_DIR"))
+
+        wind_daily = _wind_vector_resample(df, "D")
+        if not wind_daily.empty:
+            combined = combined.drop(columns=wind_daily.columns.intersection(combined.columns), errors="ignore")
+            combined = combined.join(wind_daily)
 
         if "RAIN" in df.columns:
             combined = combined.join(
