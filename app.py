@@ -43,6 +43,21 @@ from logging import FileHandler, WARNING
 import threading
 import time
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+def resource_path(relative_path: str) -> str:
+    """Resolve resource paths for both source and PyInstaller builds."""
+    candidates = []
+    if hasattr(sys, '_MEIPASS'):
+        candidates.append(os.path.join(sys._MEIPASS, relative_path))
+    if getattr(sys, 'frozen', False):
+        candidates.append(os.path.join(os.path.dirname(sys.executable), relative_path))
+    candidates.append(os.path.join(current_dir, relative_path))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[-1]
 # Create a logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -146,7 +161,8 @@ def add_calculated_columns(df: pd.DataFrame) -> pd.DataFrame:
         df['RAIN'] = pd.to_numeric(df['RAIN'], errors='coerce')
     if 'EVAPOR_MINUTE' in df.columns:
         df['EVAPOR_MINUTE'] = pd.to_numeric(df['EVAPOR_MINUTE'], errors='coerce')
-        df['EVAPOR_DAY'] = df['EVAPOR_MINUTE']
+        if 'EVAPOR_DAY' not in df.columns:
+            df['EVAPOR_DAY'] = np.nan
     return df
 # Function to establish a connection to the MySQL database
 def get_db_connection():
@@ -231,9 +247,8 @@ def get_active_alarms():
 
 #INitialize plot
 
-STATIC_FOLDER = os.path.join(current_dir, 'static')
-#TEMPLATES_FOLDER = os.path.join(current_dir, 'templates')
-template_dir = os.path.abspath('templates')
+STATIC_FOLDER = resource_path('static')
+template_dir = resource_path('templates')
 app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder=template_dir)
 #app = Flask(__name__, template_folder=template_dir)
 #app = Flask(__name__)
@@ -279,6 +294,62 @@ def _fetch_last_minute_data(cursor) -> pd.DataFrame:
     return add_calculated_columns(df_last_min_data)
 
 
+def _average_rainfall(cursor, start: datetime, end: datetime) -> float:
+    if start >= end:
+        return 0.0
+
+    query = (
+        f"SELECT AVG(RAIN) FROM {DB_TABLE_MIN} "
+        f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} < %s"
+    )
+
+    try:
+        cursor.execute(query, (start, end))
+        row = cursor.fetchone()
+    except Exception as exc:
+        logger.error(
+            f"Error averaging rainfall between {start} and {end}: {exc}",
+            exc_info=True,
+        )
+        return 0.0
+
+    if not row:
+        return 0.0
+
+    value = row[0]
+    return float(value) if value is not None else 0.0
+
+
+def _sum_hourly_rainfall(cursor, start: datetime, end: datetime) -> float:
+    if start >= end:
+        return 0.0
+
+    query = (
+        f"SELECT AVG(RAIN) AS avg_rain FROM {DB_TABLE_MIN} "
+        f"WHERE {DATE_COLUMN} >= %s AND {DATE_COLUMN} < %s "
+        f"GROUP BY YEAR({DATE_COLUMN}), MONTH({DATE_COLUMN}), DAY({DATE_COLUMN}), HOUR({DATE_COLUMN})"
+    )
+
+    try:
+        cursor.execute(query, (start, end))
+        rows = cursor.fetchall()
+    except Exception as exc:
+        logger.error(
+            f"Error summing hourly rainfall between {start} and {end}: {exc}",
+            exc_info=True,
+        )
+        return 0.0
+
+    total = 0.0
+    for row in rows:
+        if not row:
+            continue
+        value = row[0]
+        if value is not None:
+            total += float(value)
+    return total
+
+
 def _set_rainfall_totals(cursor, df_last_min_data: pd.DataFrame) -> pd.DataFrame:
     if 'RAIN' not in df_last_min_data.columns or df_last_min_data.empty:
         return df_last_min_data
@@ -290,33 +361,10 @@ def _set_rainfall_totals(cursor, df_last_min_data: pd.DataFrame) -> pd.DataFrame
     completed_hour_end = last_timestamp.to_pydatetime().replace(
         minute=0, second=0, microsecond=0
     )
+    previous_hour_start = completed_hour_end - timedelta(hours=1)
 
-    last_hour_query = (
-        f"SELECT RAIN FROM {DB_TABLE} "
-        f"WHERE {DATE_COLUMN} <= %s ORDER BY {DATE_COLUMN} DESC LIMIT 1"
-    )
-
-    try:
-        cursor.execute(last_hour_query, (completed_hour_end,))
-        last_hour_result = cursor.fetchone()
-        rain_hour_total = (
-            float(last_hour_result[0])
-            if last_hour_result and last_hour_result[0] is not None
-            else 0.0
-        )
-    except Exception as exc:
-        logger.error(
-            f"Error fetching previous hour rainfall: {exc}",
-            exc_info=True,
-        )
-        rain_hour_total = 0.0
-
+    rain_hour_total = _average_rainfall(cursor, previous_hour_start, completed_hour_end)
     df_last_min_data.loc[last_timestamp, 'RAIN_HOUR'] = rain_hour_total
-
-    sum_query = (
-        f"SELECT COALESCE(SUM(RAIN), 0) FROM {DB_TABLE} "
-        f"WHERE {DATE_COLUMN} > %s AND {DATE_COLUMN} <= %s"
-    )
 
     sum_ranges = {
         'RAIN_DAY': completed_hour_end.replace(hour=0, minute=0, second=0, microsecond=0),
@@ -325,20 +373,8 @@ def _set_rainfall_totals(cursor, df_last_min_data: pd.DataFrame) -> pd.DataFrame
     }
 
     for column, start_time in sum_ranges.items():
-        try:
-            cursor.execute(sum_query, (start_time, completed_hour_end))
-            sum_result = cursor.fetchone()
-            completed_total = (
-                float(sum_result[0]) if sum_result and sum_result[0] is not None else 0.0
-            )
-        except Exception as exc:
-            logger.error(
-                f"Error calculating rainfall total from {start_time}: {exc}",
-                exc_info=True,
-            )
-            completed_total = 0.0
-
-        df_last_min_data.loc[last_timestamp, column] = completed_total
+        total = _sum_hourly_rainfall(cursor, start_time, completed_hour_end)
+        df_last_min_data.loc[last_timestamp, column] = total
 
     return df_last_min_data
 
@@ -533,7 +569,7 @@ def graph_data():
             if 'EVAPOR_MINUTE' in df.columns:
                 df_res['EVAPOR_MINUTE'] = df['EVAPOR_MINUTE'].resample('h').apply(_last_valid_value)
             if 'RAIN' in df.columns:
-                df_res['RAIN'] = df['RAIN'].resample('h').sum(min_count=1)
+                df_res['RAIN'] = df['RAIN'].resample('h').mean()
         elif period == '30d':
             df_res = df.drop(columns=['RADIATION'], errors='ignore').resample('d').mean()
             wind_res = _wind_vector_resample(df, 'd')
@@ -807,6 +843,17 @@ def _query_sum(cursor, column: str, start: Optional[datetime], end: Optional[dat
     return _to_float(row[0])
 
 
+def _query_rain_total(cursor, start: Optional[datetime], end: Optional[datetime]):
+    conditions, params = _range_conditions(start, end)
+    where_clause = _compose_where_clause(conditions)
+    query = f"SELECT SUM(RAIN) FROM {DB_TABLE} {where_clause}"
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return _to_float(row[0])
+
+
 def _query_last_value(cursor, column: str, start: Optional[datetime], end: Optional[datetime]):
     conditions, params = _range_conditions(start, end)
     conditions.append(f"{column} IS NOT NULL")
@@ -835,8 +882,8 @@ def _query_daily_sum_extrema(
     conditions, params = _range_conditions(start, end)
     where_clause = _compose_where_clause(conditions)
     query = (
-        f"SELECT DATE({DATE_COLUMN}) AS day, SUM({column}) AS total "
-        f"FROM {DB_TABLE_MIN} {where_clause} GROUP BY day HAVING total IS NOT NULL "
+        f"SELECT DATE({DATE_COLUMN}) AS day, SUM(RAIN) AS total "
+        f"FROM {DB_TABLE} {where_clause} GROUP BY day HAVING total IS NOT NULL "
         f"ORDER BY total DESC LIMIT 1"
     )
     cursor.execute(query, params)
@@ -971,7 +1018,7 @@ def _build_stats(period: str, cursor):
             }
         )
 
-    rain_total = _query_sum(cursor, 'RAIN', start, end)
+    rain_total = _query_rain_total(cursor, start, end)
     if rain_total:
         result.append(
             {
@@ -1005,7 +1052,7 @@ def _build_stats(period: str, cursor):
             result.append(
                 {
                     "label": "Макс интензитет",
-                    "value": f"{format_number(rain_intensity['value'])} mm ({_format_dt(rain_intensity['timestamp'])})",
+                    "value": f"{format_number(rain_intensity['value'])} mm/h ({_format_dt(rain_intensity['timestamp'])})",
                 }
             )
 
@@ -1072,7 +1119,7 @@ def report_data_endpoint():
     year = request.args.get('year', type=int)
     month = request.args.get('month', type=int)
 
-    today_day = datetime.today().day
+    today = datetime.today().date()
     if not year or not month:
         return jsonify({})
     try:
@@ -1101,10 +1148,13 @@ def report_data_endpoint():
         query = (
             f"SELECT {DATE_COLUMN}, {', '.join(cols)} FROM {DB_TABLE} "
             f"WHERE YEAR({DATE_COLUMN}) = %s AND MONTH({DATE_COLUMN}) = %s "
-            f"AND DAY({DATE_COLUMN}) < %s "
-            f"ORDER BY {DATE_COLUMN} ASC"
         )
-        cursor.execute(query, (year, month, today_day))
+        params = [year, month]
+        if year == today.year and month == today.month:
+            query += f"AND DATE({DATE_COLUMN}) < %s "
+            params.append(today)
+        query += f"ORDER BY {DATE_COLUMN} ASC"
+        cursor.execute(query, params)
         data = cursor.fetchall()
         cursor.close()
         db_connection.close()
