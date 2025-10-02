@@ -240,10 +240,10 @@ def mean_1h(start_datetime, end_datetime):
     current_hour = _hour_start(start_datetime).replace(second=0, microsecond=0)
     end_hour = _hour_start(end_datetime).replace(second=0, microsecond=0)
 
-    if end_hour < current_hour:
-        end_hour = current_hour
+    if end_hour <= current_hour:
+        end_hour = current_hour + timedelta(hours=1)
 
-    while current_hour <= end_hour:
+    while current_hour < end_hour:
         hour_end = current_hour + timedelta(hours=1)
         if datetime.now() < hour_end:
             print(f"Hour starting at {current_hour} not finished; skipping")
