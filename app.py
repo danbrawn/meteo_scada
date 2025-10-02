@@ -618,6 +618,8 @@ def format_number(val: float) -> str:
         whole = whole[:-3]
     whole_with_space = ' '.join(reversed(groups))
     return f"{sign}{whole_with_space},{frac}"
+  
+  
 def _last_valid_value(series: pd.Series) -> float:
     values = pd.to_numeric(series, errors="coerce").dropna()
     if values.empty:
