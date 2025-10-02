@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import configparser
 
-from wind_utils import direction_average, wind_vector_mean
+from wind_utils import calculate_wind_stats
 
 # Load configuration from config.ini
 with open('config.ini', 'r', encoding='utf-8') as config_file:
@@ -123,14 +123,25 @@ def makeHourData():
                 col for col in numeric.columns if col.startswith('WIND_SPEED')
             ]
             for speed_col in wind_speed_columns:
-                speed_mean, dir_mean = wind_vector_mean(numeric[speed_col], direction_series)
-                if not np.isnan(speed_mean):
-                    mean_values[speed_col] = round(speed_mean, 4)
-                if np.isnan(wind_direction_mean) and not np.isnan(dir_mean):
-                    wind_direction_mean = dir_mean
+                stats_df = pd.DataFrame({
+                    speed_col: numeric[speed_col],
+                    'WIND_DIR': direction_series,
+                })
+                stats = calculate_wind_stats(stats_df, speed_col=speed_col, dir_col='WIND_DIR')
+                if not np.isnan(stats.mean_speed_resultant):
+                    mean_values[speed_col] = round(stats.mean_speed_resultant, 4)
+                if np.isnan(wind_direction_mean) and not np.isnan(stats.mean_dir):
+                    wind_direction_mean = stats.mean_dir
 
             if np.isnan(wind_direction_mean):
-                wind_direction_mean = direction_average(direction_series)
+                direction_only_df = pd.DataFrame({
+                    '_unit_speed': np.where(direction_series.notna(), 1.0, np.nan),
+                    'WIND_DIR': direction_series,
+                })
+                direction_stats = calculate_wind_stats(
+                    direction_only_df, speed_col='_unit_speed', dir_col='WIND_DIR'
+                )
+                wind_direction_mean = direction_stats.mean_dir
 
             if not np.isnan(wind_direction_mean):
                 mean_values['WIND_DIR'] = round(wind_direction_mean, 2)
