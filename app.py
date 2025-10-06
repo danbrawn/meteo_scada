@@ -1113,7 +1113,6 @@ def _build_stats(period: str, cursor):
             if label not in ordered_labels:
                 result.append(entry)
         return result
-
     if period in ('month', 'year', 'all'):
         left_order = [
             "Температура",
