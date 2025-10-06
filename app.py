@@ -1089,7 +1089,7 @@ def _build_stats(period: str, cursor):
     radiation_sum = _query_sum(cursor, 'RADIATION', start, end)
     if radiation_sum is not None:
         energy = radiation_sum * KWH_PER_M2_FROM_MINUTE
-        add_entry("Сума слънчева радиация", f"{format_number(energy)} kWh/m²")
+        add_entry("Сума от слънчева радиация", f"{format_number(energy)} kWh/m²")
 
     if period == 'today':
         left_order = [
@@ -1106,6 +1106,7 @@ def _build_stats(period: str, cursor):
             "Сума валежи",
             "Максимален интензитет",
             "Слънчева радиация",
+            "Сума от слънчева радиация",
         ]
         ordered_labels = left_order + right_order
         result = [entries[label] for label in ordered_labels if label in entries]
@@ -1113,6 +1114,7 @@ def _build_stats(period: str, cursor):
             if label not in ordered_labels:
                 result.append(entry)
         return result
+
     if period in ('month', 'year', 'all'):
         left_order = [
             "Температура",
@@ -1129,6 +1131,7 @@ def _build_stats(period: str, cursor):
             "Максимален интензитет",
             "Максимално валежи за ден",
             "Слънчева радиация",
+            "Сума от слънчева радиация",
         ]
         ordered_labels = left_order + right_order
         result = [entries[label] for label in ordered_labels if label in entries]
