@@ -1091,6 +1091,28 @@ def _build_stats(period: str, cursor):
         energy = radiation_sum * KWH_PER_M2_FROM_MINUTE
         add_entry("Сума слънчева радиация", f"{format_number(energy)} kWh/m²")
 
+    if period == 'today':
+        left_order = [
+            "Температура",
+            "Относителна влажност",
+            "Относително налягане",
+            "Абсолютно налягане",
+            "Порив на вятъра",
+            "Изпарение",
+        ]
+        right_order = [
+            "Температура на водата",
+            "Точка на роса",
+            "Сума валежи",
+            "Максимален интензитет",
+            "Слънчева радиация",
+        ]
+        ordered_labels = left_order + right_order
+        result = [entries[label] for label in ordered_labels if label in entries]
+        for label, entry in entries.items():
+            if label not in ordered_labels:
+                result.append(entry)
+        return result
     if period in ('month', 'year', 'all'):
         left_order = [
             "Температура",
