@@ -285,13 +285,21 @@ body {
   color: #333;
 }
 /* Statistics lists */
+.stats-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.stats-column {
+  flex: 1 1 220px;
+}
+
 .stats-list {
   list-style: none;
   padding: 0;
   margin: 0;
   text-align: left;
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .stats-item {
@@ -300,7 +308,6 @@ body {
   gap: 4px;
   padding: 2px 4px;
   border-bottom: 1px solid #e0e0e0;
-  width: 50%;
 }
 
 .stats-item:last-child {

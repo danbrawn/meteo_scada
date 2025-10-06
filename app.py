@@ -1091,6 +1091,22 @@ def _build_stats(period: str, cursor):
         energy = radiation_sum * KWH_PER_M2_FROM_MINUTE
         add_entry("Сума от слънчева радиация", f"{format_number(energy)} kWh/m²")
 
+    def _group_columns(left_order, right_order):
+        grouped = {"left": [], "right": []}
+        seen = set()
+        for label in left_order:
+            if label in entries:
+                grouped["left"].append(entries[label])
+                seen.add(label)
+        for label in right_order:
+            if label in entries:
+                grouped["right"].append(entries[label])
+                seen.add(label)
+        for label, entry in entries.items():
+            if label not in seen:
+                grouped["left"].append(entry)
+        return grouped
+
     if period == 'today':
         left_order = [
             "Температура",
@@ -1108,12 +1124,7 @@ def _build_stats(period: str, cursor):
             "Слънчева радиация",
             "Сума от слънчева радиация",
         ]
-        ordered_labels = left_order + right_order
-        result = [entries[label] for label in ordered_labels if label in entries]
-        for label, entry in entries.items():
-            if label not in ordered_labels:
-                result.append(entry)
-        return result
+        return _group_columns(left_order, right_order)
 
     if period in ('month', 'year', 'all'):
         left_order = [
@@ -1133,14 +1144,9 @@ def _build_stats(period: str, cursor):
             "Слънчева радиация",
             "Сума от слънчева радиация",
         ]
-        ordered_labels = left_order + right_order
-        result = [entries[label] for label in ordered_labels if label in entries]
-        for label, entry in entries.items():
-            if label not in ordered_labels:
-                result.append(entry)
-        return result
+        return _group_columns(left_order, right_order)
 
-    return list(entries.values())
+    return {"left": list(entries.values()), "right": []}
 
 
 @app.route('/statistics_data')
