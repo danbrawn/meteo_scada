@@ -1,23 +1,64 @@
 $(document).ready(function () {
-  function listToHtml(items) {
+  function normalizeItems(items) {
+    if (!items) {
+      return [];
+    }
+    if (Array.isArray(items)) {
+      return items;
+    }
+    if (typeof items === 'object') {
+      return Object.values(items);
+    }
+    return [];
+  }
+
+  function renderList(items) {
+    const normalized = normalizeItems(items);
+    if (!normalized.length) {
+      return '';
+    }
     return (
       '<ul class="stats-list">' +
-      items
-        .map(
-          item => {
-            const valueHtml = Array.isArray(item.value)
-              ? item.value
-                  .map(v => `<span class="stats-subvalue">${v}</span>`)
-                  .join('')
-              : item.value;
-            return (
-              `<li class="stats-item"><span class="stats-label">${item.label}</span>` +
-              `<span class="stats-value">${valueHtml}</span></li>`
-            );
-          }
-        )
+      normalized
+        .map(item => {
+          const valueHtml = Array.isArray(item.value)
+            ? item.value
+                .map(v => `<span class="stats-subvalue">${v}</span>`)
+                .join('')
+            : item.value;
+          return (
+            `<li class="stats-item"><span class="stats-label">${item.label}</span>` +
+            `<span class="stats-value">${valueHtml}</span></li>`
+          );
+        })
         .join('') +
       '</ul>'
+    );
+  }
+
+  function groupToHtml(grouped) {
+    if (!grouped) {
+      return '';
+    }
+    const leftItems = normalizeItems(grouped.left);
+    const rightItems = normalizeItems(grouped.right);
+
+    if (!leftItems.length && !rightItems.length && Array.isArray(grouped)) {
+      return (
+        '<div class="stats-columns">' +
+        `<div class="stats-column stats-column-left">${renderList(grouped)}</div>` +
+        '<div class="stats-column stats-column-right"></div>' +
+        '</div>'
+      );
+    }
+
+    const leftHtml = renderList(leftItems);
+    const rightHtml = renderList(rightItems);
+    return (
+      '<div class="stats-columns">' +
+      `<div class="stats-column stats-column-left">${leftHtml}</div>` +
+      `<div class="stats-column stats-column-right">${rightHtml}</div>` +
+      '</div>'
     );
   }
 
@@ -25,10 +66,10 @@ $(document).ready(function () {
     fetch('/statistics_data')
       .then(response => response.json())
       .then(data => {
-        $('#stats-today').html(listToHtml(data.today || []));
-        $('#stats-month').html(listToHtml(data.month || []));
-        $('#stats-year').html(listToHtml(data.year || []));
-        $('#stats-alltime').html(listToHtml(data.all || []));
+        $('#stats-today').html(groupToHtml(data.today));
+        $('#stats-month').html(groupToHtml(data.month));
+        $('#stats-year').html(groupToHtml(data.year));
+        $('#stats-alltime').html(groupToHtml(data.all));
       })
       .catch(err => {
         console.error('Error loading statistics', err);
