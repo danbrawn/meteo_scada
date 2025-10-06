@@ -1,11 +1,25 @@
 $(document).ready(function () {
+  function normalizeItems(items) {
+    if (!items) {
+      return [];
+    }
+    if (Array.isArray(items)) {
+      return items;
+    }
+    if (typeof items === 'object') {
+      return Object.values(items);
+    }
+    return [];
+  }
+
   function renderList(items) {
-    if (!items || !items.length) {
+    const normalized = normalizeItems(items);
+    if (!normalized.length) {
       return '';
     }
     return (
       '<ul class="stats-list">' +
-      items
+      normalized
         .map(item => {
           const valueHtml = Array.isArray(item.value)
             ? item.value
@@ -26,8 +40,20 @@ $(document).ready(function () {
     if (!grouped) {
       return '';
     }
-    const leftHtml = renderList(grouped.left || []);
-    const rightHtml = renderList(grouped.right || []);
+    const leftItems = normalizeItems(grouped.left);
+    const rightItems = normalizeItems(grouped.right);
+
+    if (!leftItems.length && !rightItems.length && Array.isArray(grouped)) {
+      return (
+        '<div class="stats-columns">' +
+        `<div class="stats-column stats-column-left">${renderList(grouped)}</div>` +
+        '<div class="stats-column stats-column-right"></div>' +
+        '</div>'
+      );
+    }
+
+    const leftHtml = renderList(leftItems);
+    const rightHtml = renderList(rightItems);
     return (
       '<div class="stats-columns">' +
       `<div class="stats-column stats-column-left">${leftHtml}</div>` +
