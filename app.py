@@ -850,10 +850,12 @@ def _query_sum(cursor, column: str, start: Optional[datetime], end: Optional[dat
 def _query_evaporation_average(
     cursor, start: Optional[datetime], end: Optional[datetime]
 ) -> Optional[float]:
+    """Return the average hourly evaporation for the requested window."""
+
     conditions, params = _range_conditions(start, end)
     conditions.append("EVAPOR_MINUTE IS NOT NULL")
     where_clause = _compose_where_clause(conditions)
-    query = f"SELECT AVG(EVAPOR_MINUTE) FROM {DB_TABLE_MIN} {where_clause}"
+    query = f"SELECT AVG(EVAPOR_MINUTE) FROM {DB_TABLE} {where_clause}"
     cursor.execute(query, params)
     row = cursor.fetchone()
     if not row:
@@ -864,12 +866,14 @@ def _query_evaporation_average(
 def _query_evaporation_daily_average_sum(
     cursor, start: Optional[datetime], end: Optional[datetime]
 ) -> Optional[float]:
+    """Return the sum of daily mean hourly evaporation values."""
+
     conditions, params = _range_conditions(start, end)
     conditions.append("EVAPOR_MINUTE IS NOT NULL")
     where_clause = _compose_where_clause(conditions)
     query = (
         f"SELECT DATE({DATE_COLUMN}) AS day, AVG(EVAPOR_MINUTE) AS avg_evap "
-        f"FROM {DB_TABLE_MIN} {where_clause} GROUP BY day"
+        f"FROM {DB_TABLE} {where_clause} GROUP BY day"
     )
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -944,12 +948,12 @@ def _query_daily_sum_extrema(
 def _build_stats(period: str, cursor):
     start, end = _period_bounds(period)
 
-    entries: Dict[str, Dict[str, object]] = {}
+    result: List[Dict[str, object]] = []
 
     def add_entry(label: str, value):
         if value is None:
             return
-        entries[label] = {"label": label, "value": value}
+        result.append({"label": label, "value": value})
 
     temp_min = _query_extrema(cursor, 'T_AIR', start, end, asc=True)
     temp_max = _query_extrema(cursor, 'T_AIR', start, end, asc=False)
@@ -1094,17 +1098,26 @@ def _build_stats(period: str, cursor):
     def _group_columns(left_order, right_order):
         grouped = {"left": [], "right": []}
         seen = set()
+        by_label = {entry["label"]: entry for entry in result}
+
         for label in left_order:
-            if label in entries:
-                grouped["left"].append(entries[label])
+            entry = by_label.get(label)
+            if entry:
+                grouped["left"].append(entry)
                 seen.add(label)
+
         for label in right_order:
-            if label in entries:
-                grouped["right"].append(entries[label])
+            entry = by_label.get(label)
+            if entry:
+                grouped["right"].append(entry)
                 seen.add(label)
-        for label, entry in entries.items():
+
+        for entry in result:
+            label = entry["label"]
             if label not in seen:
                 grouped["left"].append(entry)
+                seen.add(label)
+
         return grouped
 
     if period == 'today':
@@ -1146,7 +1159,7 @@ def _build_stats(period: str, cursor):
         ]
         return _group_columns(left_order, right_order)
 
-    return {"left": list(entries.values()), "right": []}
+    return {"left": result, "right": []}
 
 
 @app.route('/statistics_data')
