@@ -196,6 +196,12 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Zero out seconds in CSV data
     csv_data.loc[:, 'DateRef'] = csv_data['DateRef'].apply(zero_seconds)
 
+    # Remove rows without timestamps and make sure the last measurement for
+    # each minute is retained after sorting chronologically
+    csv_data = csv_data.dropna(subset=['DateRef'])
+    csv_data = csv_data.sort_values('DateRef')
+    csv_data = csv_data.drop_duplicates(subset=['DateRef'], keep='last')
+
     # Convert measurement columns to numeric
     for col in db_col_names:
         if col != 'DateRef' and col in csv_data.columns:
@@ -214,7 +220,7 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
 
     # Read existing data from the database
     try:
-        existing_data = pd.read_sql_table(table_name, engine, columns=db_col_names)
+        existing_data = pd.read_sql_table(table_name, engine, columns=['DateRef'])
         existing_data['DateRef'] = pd.to_datetime(existing_data['DateRef'])
     except Exception as e:
         print(f"Error reading data from the database: {e}")
@@ -223,8 +229,28 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Zero out seconds in existing data
     existing_data.loc[:, 'DateRef'] = existing_data['DateRef'].apply(zero_seconds)
 
-    # Filter out rows that already exist in the database
-    new_data = csv_data[~csv_data['DateRef'].isin(existing_data['DateRef'])]
+    existing_dates = set(existing_data['DateRef'])
+
+    # Split CSV data into new and existing timestamps
+    existing_updates = csv_data[csv_data['DateRef'].isin(existing_dates)]
+    new_data = csv_data[~csv_data['DateRef'].isin(existing_dates)]
+
+    # Update existing records in a transaction
+    if not existing_updates.empty:
+        update_columns = [col for col in db_col_names if col != 'DateRef']
+        set_clause = ', '.join([f"`{col}` = :{col}" for col in update_columns])
+        update_stmt = text(
+            f"UPDATE {table_name} SET {set_clause} WHERE `DateRef` = :DateRef"
+        )
+        try:
+            with engine.begin() as connection:
+                for _, row in existing_updates.iterrows():
+                    params = {col: row[col] for col in db_col_names if col in existing_updates.columns}
+                    connection.execute(update_stmt, params)
+            print(f"Updated {len(existing_updates)} records in {table_name}.")
+        except Exception as e:
+            logging.error(f"Error updating existing records: {e}")
+            print(f"Error updating existing records: {e}")
 
     if new_data.empty:
         print("No new records to insert.")
@@ -234,6 +260,7 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
             new_data.to_sql(table_name, engine, if_exists='append', index=False)
             print(f"Inserted {len(new_data)} records into {table_name}.")
         except Exception as e:
+            logging.error(f"Error inserting data into the database: {e}")
             print(f"Error inserting data into the database: {e}")
 
 def main():
