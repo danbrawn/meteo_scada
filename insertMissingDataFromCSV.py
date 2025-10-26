@@ -7,27 +7,36 @@ import sqlalchemy as sa
 from sqlalchemy.sql import text
 import mean_1h
 import logging
-from logging import FileHandler,WARNING
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # Create a logger
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Create file handler which logs only errors
-file_handler = logging.FileHandler('errorlog.log')
-file_handler.setLevel(logging.ERROR)
-
-# Create formatter and add it to the file handler
+# Create formatter and file handlers while avoiding duplicates
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
 
-# Add the file handler to the logger
-logger.addHandler(file_handler)
+error_log_path = os.path.join(current_dir, 'errorlog.log')
+warning_log_path = os.path.join(current_dir, 'errorlog.txt')
 
-file_handler = FileHandler('errorlog.txt')
-file_handler.setLevel(WARNING)
+def _add_file_handler(path, level):
+    absolute_path = os.path.abspath(path)
+    for existing_handler in logger.handlers:
+        if isinstance(existing_handler, logging.FileHandler) and os.path.abspath(existing_handler.baseFilename) == absolute_path:
+            existing_handler.setLevel(level)
+            if existing_handler.formatter is None:
+                existing_handler.setFormatter(formatter)
+            return
+
+    handler = logging.FileHandler(absolute_path)
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+
+_add_file_handler(error_log_path, logging.ERROR)
+_add_file_handler(warning_log_path, logging.WARNING)
 
 last_ftp_status = None
 last_ftp_error = None
@@ -116,7 +125,12 @@ def download_csv_files(ftp, last_date_str, remote_csv_path, local_folder, ftp_co
         else:
             last_date = last_date_str
     except (TypeError, ValueError) as e:
-        print(f"Error parsing last_record_datetime: {e}")
+        logger.error(
+            "Error parsing last_record_datetime '%s' while downloading CSV files: %s",
+            last_date_str,
+            e,
+            exc_info=True,
+        )
         ftp.quit()
         return
 
@@ -144,11 +158,22 @@ def download_csv_files(ftp, last_date_str, remote_csv_path, local_folder, ftp_co
         try:
             ftp.cwd(remote_dir)
         except error_perm as e:
-            print(f"Remote directory missing for {target_date}: {remote_dir} ({e})")
+            logger.error(
+                "Remote directory missing for %s at %s: %s",
+                target_date,
+                remote_dir,
+                e,
+                exc_info=True,
+            )
             target_date += timedelta(days=1)
             continue
         except Exception as e:
-            print(f"Failed to change directory to {remote_dir}: {e}")
+            logger.error(
+                "Failed to change directory to %s while downloading CSV files: %s",
+                remote_dir,
+                e,
+                exc_info=True,
+            )
             target_date += timedelta(days=1)
             continue
 
@@ -159,11 +184,24 @@ def download_csv_files(ftp, last_date_str, remote_csv_path, local_folder, ftp_co
                 ftp.retrbinary(f"RETR {file_name}", f.write)
             print(f"Downloaded: {file_name}")
         except error_perm as e:
-            print(f"File not found for {target_date}: {file_name} ({e})")
+            logger.error(
+                "File not found for %s: %s in %s: %s",
+                target_date,
+                file_name,
+                remote_dir,
+                e,
+                exc_info=True,
+            )
             if os.path.exists(local_file):
                 os.remove(local_file)
         except Exception as e:
-            print(f"Failed to download {file_name}: {e}")
+            logger.error(
+                "Failed to download %s from %s: %s",
+                file_name,
+                remote_dir,
+                e,
+                exc_info=True,
+            )
             if os.path.exists(local_file):
                 os.remove(local_file)
 
@@ -212,7 +250,11 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
     # Ensure that all required columns are present in the DataFrame
     missing_cols = set(db_col_names) - set(csv_data.columns)
     if missing_cols:
-        print(f"Error: Missing columns in CSV data: {missing_cols}")
+        logger.error(
+            "Missing required columns for table %s while inserting data: %s",
+            table_name,
+            ', '.join(sorted(missing_cols)),
+        )
         return
 
     # Reorder columns to match the database table columns
@@ -223,7 +265,12 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
         existing_data = pd.read_sql_table(table_name, engine, columns=['DateRef'])
         existing_data['DateRef'] = pd.to_datetime(existing_data['DateRef'])
     except Exception as e:
-        print(f"Error reading data from the database: {e}")
+        logger.error(
+            "Error reading existing data from table %s: %s",
+            table_name,
+            e,
+            exc_info=True,
+        )
         return
 
     # Zero out seconds in existing data
@@ -249,8 +296,12 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
                     connection.execute(update_stmt, params)
             print(f"Updated {len(existing_updates)} records in {table_name}.")
         except Exception as e:
-            logging.error(f"Error updating existing records: {e}")
-            print(f"Error updating existing records: {e}")
+            logger.error(
+                "Error updating existing records in table %s from file data: %s",
+                table_name,
+                e,
+                exc_info=True,
+            )
 
     if new_data.empty:
         print("No new records to insert.")
@@ -260,29 +311,33 @@ def insert_data_into_db(engine, table_name, csv_data, column_mapping, db_col_nam
             new_data.to_sql(table_name, engine, if_exists='append', index=False)
             print(f"Inserted {len(new_data)} records into {table_name}.")
         except Exception as e:
-            logging.error(f"Error inserting data into the database: {e}")
-            print(f"Error inserting data into the database: {e}")
+            logger.error(
+                "Error inserting new data into table %s: %s",
+                table_name,
+                e,
+                exc_info=True,
+            )
 
 def main():
     try:
         # Read config
         db_config, ftp_config = read_config()
     except Exception as e:
-        logging.error(f"Error reading configuration: {e}")
+        logger.error("Error reading configuration: %s", e, exc_info=True)
         return
 
     try:
         # Create a database connection
         engine = create_db_connection(db_config)
     except Exception as e:
-        logging.error(f"Error creating database connection: {e}")
+        logger.error("Error creating database connection: %s", e, exc_info=True)
         return
 
     try:
         # Get the last record date from the DB
         last_record_date = get_last_record_datetime(engine, db_config['table_name'])
     except Exception as e:
-        logging.error(f"Error fetching last record datetime: {e}")
+        logger.error("Error fetching last record datetime: %s", e, exc_info=True)
         return
 
     if last_record_date is None:
@@ -305,7 +360,7 @@ def main():
         last_ftp_status = False
         last_ftp_error = str(e)
         last_ftp_check = datetime.now()
-        logging.error(f"Error connecting to FTP server or downloading files: {e}")
+        logger.error("Error connecting to FTP server or downloading files: %s", e, exc_info=True)
         return
 
     # Track the latest timestamp from newly inserted minute data
@@ -322,10 +377,10 @@ def main():
             try:
                 csv_data = pd.read_csv(csv_path, encoding='latin1')
             except Exception as e:
-                logging.error(f"Error reading CSV file {csv_file}: {e}")
+                logger.error("Error reading CSV file %s with latin1 fallback: %s", csv_file, e, exc_info=True)
                 continue
         except Exception as e:
-            logging.error(f"General error reading CSV file {csv_file}: {e}")
+            logger.error("General error reading CSV file %s: %s", csv_file, e, exc_info=True)
             continue
 
         # Ensure all expected columns exist
@@ -339,7 +394,10 @@ def main():
             if 'Time' in csv_data.columns:
                 csv_data['DateRef'] = pd.to_datetime(csv_data['Time'], errors='coerce')
             else:
-                print(f"Error: 'Time' column is missing from the CSV file {csv_file}.")
+                logger.error(
+                    "Missing 'Time' column in CSV file %s while preparing data for insertion",
+                    csv_file,
+                )
                 continue
 
             # Filter rows where 'DateRef' is greater than the last record date
@@ -366,7 +424,7 @@ def main():
                 ftp_config['db_col_names'],
             )
         except Exception as e:
-            logging.error(f"Error processing file {csv_file}: {e}")
+            logger.error("Error processing file %s: %s", csv_file, e, exc_info=True)
             continue
 
     try:
@@ -399,8 +457,7 @@ def main():
                 call_mean_hourly(current_hour, current_hour + timedelta(hours=1))
                 current_hour += timedelta(hours=1)
     except Exception as e:
-        logging.error(f"Error calculating hourly mean: {e}")
-        print(e)
+        logger.error("Error calculating hourly mean: %s", e, exc_info=True)
         return
 
     return "Data update complete."
@@ -410,5 +467,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        logging.error(f"An unexpected error occurred in main execution: {e}")
+        logger.error("An unexpected error occurred in main execution: %s", e, exc_info=True)
 
