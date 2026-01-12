@@ -793,109 +793,119 @@ DEW_POINT_SQL_EXPR = (
 )
 
 
-def _query_extrema(
+def _query_minute_aggregates(cursor, start: Optional[datetime], end: Optional[datetime]):
+    conditions, params = _range_conditions(start, end)
+    where_clause = _compose_where_clause(conditions)
+    dew_expr = DEW_POINT_SQL_EXPR
+    query = (
+        "SELECT "
+        "m.t_air_min, m.t_air_max, "
+        f"MIN(CASE WHEN stats.T_AIR = m.t_air_min THEN stats.{DATE_COLUMN} END) AS t_air_min_ts, "
+        f"MIN(CASE WHEN stats.T_AIR = m.t_air_max THEN stats.{DATE_COLUMN} END) AS t_air_max_ts, "
+        "m.t_water_min, m.t_water_max, "
+        f"MIN(CASE WHEN stats.T_WATER = m.t_water_min THEN stats.{DATE_COLUMN} END) AS t_water_min_ts, "
+        f"MIN(CASE WHEN stats.T_WATER = m.t_water_max THEN stats.{DATE_COLUMN} END) AS t_water_max_ts, "
+        "m.rel_hum_min, m.rel_hum_max, "
+        f"MIN(CASE WHEN stats.REL_HUM = m.rel_hum_min THEN stats.{DATE_COLUMN} END) AS rel_hum_min_ts, "
+        f"MIN(CASE WHEN stats.REL_HUM = m.rel_hum_max THEN stats.{DATE_COLUMN} END) AS rel_hum_max_ts, "
+        "m.dew_min, m.dew_max, "
+        f"MIN(CASE WHEN stats.dew_point = m.dew_min THEN stats.{DATE_COLUMN} END) AS dew_min_ts, "
+        f"MIN(CASE WHEN stats.dew_point = m.dew_max THEN stats.{DATE_COLUMN} END) AS dew_max_ts, "
+        "m.p_rel_min, m.p_rel_max, "
+        f"MIN(CASE WHEN stats.P_REL = m.p_rel_min THEN stats.{DATE_COLUMN} END) AS p_rel_min_ts, "
+        f"MIN(CASE WHEN stats.P_REL = m.p_rel_max THEN stats.{DATE_COLUMN} END) AS p_rel_max_ts, "
+        "m.p_abs_min, m.p_abs_max, "
+        f"MIN(CASE WHEN stats.P_ABS = m.p_abs_min THEN stats.{DATE_COLUMN} END) AS p_abs_min_ts, "
+        f"MIN(CASE WHEN stats.P_ABS = m.p_abs_max THEN stats.{DATE_COLUMN} END) AS p_abs_max_ts, "
+        "m.wind_gust_max, "
+        f"MIN(CASE WHEN stats.WIND_GUST = m.wind_gust_max THEN stats.{DATE_COLUMN} END) AS wind_gust_ts, "
+        "MAX(CASE WHEN stats.WIND_GUST = m.wind_gust_max THEN stats.WIND_DIR END) AS wind_gust_dir, "
+        "m.rain_max, "
+        f"MIN(CASE WHEN stats.RAIN = m.rain_max THEN stats.{DATE_COLUMN} END) AS rain_max_ts, "
+        "m.radiation_max, "
+        f"MIN(CASE WHEN stats.RADIATION = m.radiation_max THEN stats.{DATE_COLUMN} END) AS radiation_max_ts, "
+        "m.radiation_sum "
+        "FROM ("
+        f"SELECT {DATE_COLUMN}, T_AIR, T_WATER, REL_HUM, P_REL, P_ABS, WIND_GUST, WIND_DIR, "
+        f"RADIATION, RAIN, {dew_expr} AS dew_point "
+        f"FROM {DB_TABLE_MIN} {where_clause}"
+        ") stats "
+        "CROSS JOIN ("
+        "SELECT "
+        "MIN(T_AIR) AS t_air_min, MAX(T_AIR) AS t_air_max, "
+        "MIN(T_WATER) AS t_water_min, MAX(T_WATER) AS t_water_max, "
+        "MIN(REL_HUM) AS rel_hum_min, MAX(REL_HUM) AS rel_hum_max, "
+        f"MIN({dew_expr}) AS dew_min, MAX({dew_expr}) AS dew_max, "
+        "MIN(P_REL) AS p_rel_min, MAX(P_REL) AS p_rel_max, "
+        "MIN(P_ABS) AS p_abs_min, MAX(P_ABS) AS p_abs_max, "
+        "MAX(WIND_GUST) AS wind_gust_max, "
+        "MAX(RAIN) AS rain_max, "
+        "MAX(RADIATION) AS radiation_max, "
+        "SUM(RADIATION) AS radiation_sum "
+        f"FROM {DB_TABLE_MIN} {where_clause}"
+        ") m"
+    )
+    cursor.execute(query, params + params)
+    row = cursor.fetchone()
+    if not row:
+        return {}
+    columns = [desc[0] for desc in cursor.description]
+    return dict(zip(columns, row))
+
+
+def _query_rain_evaporation_stats(
     cursor,
-    column: str,
     start: Optional[datetime],
     end: Optional[datetime],
     *,
-    asc: bool = True,
-    expression: Optional[str] = None,
-    extra_columns: Optional[Sequence[str]] = None,
-    filters: Optional[Sequence[str]] = None,
-):
-    extra_columns = list(extra_columns or [])
+    period: str,
+) -> Dict[str, Optional[float]]:
     conditions, params = _range_conditions(start, end)
-    if expression is None:
-        conditions.append(f"{column} IS NOT NULL")
-    if filters:
-        conditions.extend(filters)
     where_clause = _compose_where_clause(conditions)
-    value_expr = expression or column
-    select_parts = [f"{value_expr} AS value"] + extra_columns + [DATE_COLUMN]
-    inner_query = (
-        f"SELECT {', '.join(select_parts)} FROM {DB_TABLE_MIN} {where_clause}"
-    )
+    if period == 'today':
+        query = (
+            f"SELECT SUM(RAIN) AS rain_total, AVG(EVAPOR_MINUTE) AS evap_avg "
+            f"FROM {DB_TABLE} {where_clause}"
+        )
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+        if not row:
+            return {"rain_total": None, "evap_value": None}
+        return {"rain_total": _to_float(row[0]), "evap_value": _to_float(row[1])}
+
     query = (
-        f"SELECT * FROM ({inner_query}) AS stats "
-        f"WHERE value IS NOT NULL ORDER BY value {'ASC' if asc else 'DESC'} LIMIT 1"
-    )
-    cursor.execute(query, params)
-    row = cursor.fetchone()
-    if not row:
-        return None
-    value = _to_float(row[0])
-    if value is None:
-        return None
-    extras: Dict[str, Optional[float]] = {}
-    for idx, col in enumerate(extra_columns):
-        extras[col] = _to_float(row[1 + idx]) if isinstance(row[1 + idx], (Decimal, int, float)) else row[1 + idx]
-    timestamp = row[1 + len(extra_columns)]
-    if timestamp is None:
-        return None
-    return {"value": value, "timestamp": timestamp, "extras": extras}
-
-
-def _query_sum(cursor, column: str, start: Optional[datetime], end: Optional[datetime]):
-    conditions, params = _range_conditions(start, end)
-    where_clause = _compose_where_clause(conditions)
-    query = f"SELECT SUM({column}) FROM {DB_TABLE_MIN} {where_clause}"
-    cursor.execute(query, params)
-    row = cursor.fetchone()
-    if not row:
-        return None
-    return _to_float(row[0])
-
-
-def _query_evaporation_average(
-    cursor, start: Optional[datetime], end: Optional[datetime]
-) -> Optional[float]:
-    """Return the average hourly evaporation for the requested window."""
-
-    conditions, params = _range_conditions(start, end)
-    conditions.append("EVAPOR_MINUTE IS NOT NULL")
-    where_clause = _compose_where_clause(conditions)
-    query = f"SELECT AVG(EVAPOR_MINUTE) FROM {DB_TABLE} {where_clause}"
-    cursor.execute(query, params)
-    row = cursor.fetchone()
-    if not row:
-        return None
-    return _to_float(row[0])
-
-
-def _query_evaporation_daily_average_sum(
-    cursor, start: Optional[datetime], end: Optional[datetime]
-) -> Optional[float]:
-    """Return the sum of daily mean hourly evaporation values."""
-
-    conditions, params = _range_conditions(start, end)
-    conditions.append("EVAPOR_MINUTE IS NOT NULL")
-    where_clause = _compose_where_clause(conditions)
-    query = (
+        "SELECT totals.rain_total, daily.evap_sum FROM "
+        f"(SELECT SUM(RAIN) AS rain_total FROM {DB_TABLE} {where_clause}) totals "
+        "CROSS JOIN ("
+        "SELECT SUM(avg_evap) AS evap_sum FROM ("
         f"SELECT DATE({DATE_COLUMN}) AS day, AVG(EVAPOR_MINUTE) AS avg_evap "
         f"FROM {DB_TABLE} {where_clause} GROUP BY day"
+        ") daily_data"
+        ") daily"
     )
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    if not rows:
-        return None
-    daily_values = [
-        _to_float(row[1]) for row in rows if len(row) > 1 and _to_float(row[1]) is not None
-    ]
-    if not daily_values:
-        return None
-    return float(np.nansum(daily_values))
-
-
-def _query_rain_total(cursor, start: Optional[datetime], end: Optional[datetime]):
-    conditions, params = _range_conditions(start, end)
-    where_clause = _compose_where_clause(conditions)
-    query = f"SELECT SUM(RAIN) FROM {DB_TABLE} {where_clause}"
-    cursor.execute(query, params)
+    cursor.execute(query, params + params)
     row = cursor.fetchone()
     if not row:
+        return {"rain_total": None, "evap_value": None}
+    return {"rain_total": _to_float(row[0]), "evap_value": _to_float(row[1])}
+
+
+def _aggregate_extrema(
+    data: Dict[str, object],
+    value_key: str,
+    timestamp_key: str,
+    *,
+    extras: Optional[Dict[str, str]] = None,
+):
+    value = _to_float(data.get(value_key))
+    timestamp = data.get(timestamp_key)
+    if value is None or timestamp is None:
         return None
-    return _to_float(row[0])
+    extras_map: Dict[str, Optional[float]] = {}
+    if extras:
+        for output_key, data_key in extras.items():
+            extras_map[output_key] = _to_float(data.get(data_key))
+    return {"value": value, "timestamp": timestamp, "extras": extras_map}
 
 
 def _query_last_value(cursor, column: str, start: Optional[datetime], end: Optional[datetime]):
@@ -955,8 +965,10 @@ def _build_stats(period: str, cursor):
             return
         result.append({"label": label, "value": value})
 
-    temp_min = _query_extrema(cursor, 'T_AIR', start, end, asc=True)
-    temp_max = _query_extrema(cursor, 'T_AIR', start, end, asc=False)
+    aggregates = _query_minute_aggregates(cursor, start, end)
+
+    temp_min = _aggregate_extrema(aggregates, 't_air_min', 't_air_min_ts')
+    temp_max = _aggregate_extrema(aggregates, 't_air_max', 't_air_max_ts')
     if temp_min and temp_max:
         add_entry(
             "Температура",
@@ -966,8 +978,8 @@ def _build_stats(period: str, cursor):
             ],
         )
 
-    water_min = _query_extrema(cursor, 'T_WATER', start, end, asc=True)
-    water_max = _query_extrema(cursor, 'T_WATER', start, end, asc=False)
+    water_min = _aggregate_extrema(aggregates, 't_water_min', 't_water_min_ts')
+    water_max = _aggregate_extrema(aggregates, 't_water_max', 't_water_max_ts')
     if water_min and water_max:
         add_entry(
             "Температура на водата",
@@ -977,8 +989,8 @@ def _build_stats(period: str, cursor):
             ],
         )
 
-    hum_min = _query_extrema(cursor, 'REL_HUM', start, end, asc=True)
-    hum_max = _query_extrema(cursor, 'REL_HUM', start, end, asc=False)
+    hum_min = _aggregate_extrema(aggregates, 'rel_hum_min', 'rel_hum_min_ts')
+    hum_max = _aggregate_extrema(aggregates, 'rel_hum_max', 'rel_hum_max_ts')
     if hum_min and hum_max:
         add_entry(
             "Относителна влажност",
@@ -988,22 +1000,8 @@ def _build_stats(period: str, cursor):
             ],
         )
 
-    dew_min = _query_extrema(
-        cursor,
-        'T_AIR',
-        start,
-        end,
-        asc=True,
-        expression=DEW_POINT_SQL_EXPR,
-    )
-    dew_max = _query_extrema(
-        cursor,
-        'T_AIR',
-        start,
-        end,
-        asc=False,
-        expression=DEW_POINT_SQL_EXPR,
-    )
+    dew_min = _aggregate_extrema(aggregates, 'dew_min', 'dew_min_ts')
+    dew_max = _aggregate_extrema(aggregates, 'dew_max', 'dew_max_ts')
     if dew_min and dew_max:
         add_entry(
             "Точка на роса",
@@ -1013,8 +1011,8 @@ def _build_stats(period: str, cursor):
             ],
         )
 
-    press_rel_min = _query_extrema(cursor, 'P_REL', start, end, asc=True)
-    press_rel_max = _query_extrema(cursor, 'P_REL', start, end, asc=False)
+    press_rel_min = _aggregate_extrema(aggregates, 'p_rel_min', 'p_rel_min_ts')
+    press_rel_max = _aggregate_extrema(aggregates, 'p_rel_max', 'p_rel_max_ts')
     if press_rel_min and press_rel_max:
         add_entry(
             "Относително налягане",
@@ -1024,8 +1022,8 @@ def _build_stats(period: str, cursor):
             ],
         )
 
-    press_abs_min = _query_extrema(cursor, 'P_ABS', start, end, asc=True)
-    press_abs_max = _query_extrema(cursor, 'P_ABS', start, end, asc=False)
+    press_abs_min = _aggregate_extrema(aggregates, 'p_abs_min', 'p_abs_min_ts')
+    press_abs_max = _aggregate_extrema(aggregates, 'p_abs_max', 'p_abs_max_ts')
     if press_abs_min and press_abs_max:
         add_entry(
             "Абсолютно налягане",
@@ -1035,13 +1033,11 @@ def _build_stats(period: str, cursor):
             ],
         )
 
-    gust = _query_extrema(
-        cursor,
-        'WIND_GUST',
-        start,
-        end,
-        asc=False,
-        extra_columns=['WIND_DIR'],
+    gust = _aggregate_extrema(
+        aggregates,
+        'wind_gust_max',
+        'wind_gust_ts',
+        extras={'WIND_DIR': 'wind_gust_dir'},
     )
     if gust:
         direction = gust['extras'].get('WIND_DIR') if gust['extras'] else None
@@ -1053,16 +1049,17 @@ def _build_stats(period: str, cursor):
             f"макс {format_number(gust['value'])} km/h{dir_text} ({_format_dt(gust['timestamp'])})",
         )
 
-    rain_total = _query_rain_total(cursor, start, end)
+    rain_evap = _query_rain_evaporation_stats(cursor, start, end, period=period)
+    rain_total = rain_evap.get('rain_total') if rain_evap else None
     if rain_total:
         add_entry("Сума валежи", f"{format_number(rain_total)} mm")
 
     if period == 'today':
-        evap_value = _query_evaporation_average(cursor, start, end)
+        evap_value = rain_evap.get('evap_value') if rain_evap else None
         if evap_value is not None:
             add_entry("Изпарение", f"{format_number(evap_value)} mm")
     else:
-        evap_sum = _query_evaporation_daily_average_sum(cursor, start, end)
+        evap_sum = rain_evap.get('evap_value') if rain_evap else None
         if evap_sum is not None:
             add_entry("Сума от изпарение", f"{format_number(evap_sum)} mm")
 
@@ -1075,7 +1072,7 @@ def _build_stats(period: str, cursor):
                 f"{format_number(max_daily_rain['value'])} mm ({_format_dt(max_daily_rain['timestamp'])})",
             )
 
-        rain_intensity = _query_extrema(cursor, 'RAIN', start, end, asc=False)
+        rain_intensity = _aggregate_extrema(aggregates, 'rain_max', 'rain_max_ts')
         if rain_intensity:
             label = "Максимален интензитет"
             add_entry(
@@ -1083,14 +1080,14 @@ def _build_stats(period: str, cursor):
                 f"{format_number(rain_intensity['value'])} mm/h ({_format_dt(rain_intensity['timestamp'])})",
             )
 
-    radiation_max = _query_extrema(cursor, 'RADIATION', start, end, asc=False)
+    radiation_max = _aggregate_extrema(aggregates, 'radiation_max', 'radiation_max_ts')
     if radiation_max:
         add_entry(
             "Слънчева радиация",
             f"макс {format_number(radiation_max['value'])} W/m² ({_format_dt(radiation_max['timestamp'])})",
         )
 
-    radiation_sum = _query_sum(cursor, 'RADIATION', start, end)
+    radiation_sum = _to_float(aggregates.get('radiation_sum')) if aggregates else None
     if radiation_sum is not None:
         energy = radiation_sum * KWH_PER_M2_FROM_MINUTE
         add_entry("Сума от слънчева радиация", f"{format_number(energy)} kWh/m²")
@@ -1710,4 +1707,3 @@ if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5010, debug=False)
     # uncomment this to start in non production
     serve(app, host='0.0.0.0', port=5010)
-
